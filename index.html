@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MTG Collection Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --bg2: #13131a;
+      --bg3: #1a1a26;
+      --border: #2a2a3d;
+      --border-bright: #4a4a6a;
+      --gold: #c9a84c;
+      --gold-light: #e8c87a;
+      --gold-dim: #7a6030;
+      --text: #e8e4d8;
+      --text-dim: #8a8478;
+      --text-muted: #4a4840;
+      --accent: #7b4fc4;
+      --accent2: #4f86c4;
+      --red: #c44f4f;
+      --owned: #4fc47b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Crimson Pro', Georgia, serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle parchment texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.5;
+    }
+
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+
+    /* ===== LAYOUT ===== */
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ===== HEADER ===== */
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: linear-gradient(180deg, #16141f 0%, transparent 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .header-logo {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 1.3rem;
+      color: var(--gold);
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      text-shadow: 0 0 20px rgba(201,168,76,0.3);
+      flex-shrink: 0;
+    }
+
+    .header-logo span {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-family: 'Cinzel', serif;
+      display: block;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-top: -2px;
+    }
+
+    .header-sep { flex: 1; }
+
+    .breadcrumb {
+      font-family: 'Cinzel', serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .breadcrumb .crumb-active { color: var(--gold); }
+    .breadcrumb .sep { color: var(--text-muted); }
+
+    /* ===== MAIN ===== */
+    main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+    /* ===== LISTS HOME ===== */
+    .page-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: var(--gold);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.05em;
+    }
+
+    .page-subtitle {
+      color: var(--text-dim);
+      font-size: 1.05rem;
+      font-style: italic;
+      margin-bottom: 2rem;
+    }
+
+    .lists-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.2rem;
+    }
+
+    .list-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.4rem;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .list-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .list-card:hover {
+      border-color: var(--gold-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    .list-card:hover::before { opacity: 1; }
+
+    .list-card-name {
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .list-card-desc {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      font-style: italic;
+      margin-bottom: 1rem;
+      line-height: 1.4;
+      min-height: 1.3em;
+    }
+
+    .list-card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'Cinzel', serif;
+      letter-spacing: 0.05em;
+    }
+
+    .list-card-progress {
+      font-size: 0.75rem;
+      color: var(--owned);
+    }
+
+    .list-card-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ===== NEW LIST CARD ===== */
+    .new-list-card {
+      border: 1px dashed var(--border-bright);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.7rem;
+      color: var(--text-dim);
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.1em;
+      min-height: 120px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .new-list-card:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .new-list-card .plus {
+      font-size: 1.5rem;
+      font-family: monospace;
+      line-height: 1;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      font-family: 'Cinzel', serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid;
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #3a2e10, #2a2010);
+      border-color: var(--gold-dim);
+      color: var(--gold-light);
+    }
+
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #4a3e18, #3a2e14);
+      border-color: var(--gold);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border-bright);
+      color: var(--text-dim);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--text-dim);
+      color: var(--text);
+    }
+
+    .btn-danger {
+      background: transparent;
+      border-color: #5a2020;
+      color: #c47a7a;
+    }
+
+    .btn-danger:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.72rem; }
+
+    /* ===== MODE TOGGLE ===== */
+    .mode-toggle {
+      display: flex;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .mode-toggle-btn {
+      padding: 0.4rem 0.8rem;
+      font-family: 'Cinzel', serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+
+    .mode-toggle-btn.active {
+      background: var(--bg2);
+      color: var(--gold);
+    }
+
+    .mode-toggle-btn:hover:not(.active) { color: var(--text-dim); }
+
+    @media (max-width: 600px) {
+      header { padding: 1rem; }
+      main { padding: 1rem; }
+      .list-view-header { gap: 0.8rem; margin-bottom: 1.2rem; }
+      .list-view-title { font-size: 1.2rem; }
+      .list-view-actions { gap: 0.4rem; }
+      .btn { padding: 0.45rem 0.7rem; font-size: 0.72rem; }
+      .header-logo { font-size: 1.1rem; }
+    }
+
+    /* ===== MODAL ===== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      backdrop-filter: blur(4px);
+      animation: fadeIn 0.15s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .modal {
+      background: var(--bg2);
+      border: 1px solid var(--border-bright);
+      border-radius: 10px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 520px;
+      animation: slideUp 0.2s ease;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-wide { max-width: 760px; }
+
+    .modal-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--gold);
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+      margin-top: 1.5rem;
+    }
+
+    /* ===== FORMS ===== */
+    .field { margin-bottom: 1.2rem; }
+
+    .field label {
+      display: block;
+      font-family: 'Cinzel', serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 0.4rem;
+    }
+
+    .field input, .field textarea {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.6rem 0.8rem;
+      color: var(--text);
+      font-family: 'Crimson Pro', serif;
+      font-size: 1rem;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    .field input:focus, .field textarea:focus {
+      border-color: var(--gold-dim);
+    }
+
+    .field textarea { resize: vertical; min-height: 80px; }
+
+    /* ===== CARD DETAIL VIEW ===== */
+    .list-view-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .list-view-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .list-view-desc {
+      color: var(--text-dim);
+      font-style: italic;
+      margin-top: 0.2rem;
+    }
+
+    .list-view-stats {
+      margin-top: 0.5rem;
+      font-family: 'Cinzel', serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    .list-view-stats .owned-count { color: var(--owned); }
+
+    .list-view-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+    /* ===== CARD GRID ===== */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+      transition: gap 0.3s;
+    }
+
+    /* View mode: big cards */
+    .card-grid.mode-view {
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.2rem;
+    }
+
+    /* Organize mode: small cards, tighter grid */
+    .card-grid.mode-organize {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 0.5rem;
+    }
+
+    @media (max-width: 600px) {
+      .card-grid.mode-view {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.7rem;
+      }
+      .card-grid.mode-organize {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 0.4rem;
+      }
+    }
+
+    .card-item {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      aspect-ratio: 63/88;
+      background: var(--bg3);
+    }
+
+    .card-item:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+      z-index: 2;
+    }
+
+    .card-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 8px;
+      transition: filter 0.4s ease;
+    }
+
+    .card-item.missing img {
+      filter: grayscale(100%) brightness(0.7);
+    }
+
+    .card-item .card-overlay {
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .card-item.owned .card-overlay {
+      border-color: rgba(79, 196, 123, 0.4);
+    }
+
+    .card-item.missing .card-overlay {
+      border-color: rgba(100, 100, 140, 0.3);
+    }
+
+    .card-item .card-drag-handle {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      background: rgba(0,0,0,0.6);
+      border-radius: 4px;
+      padding: 2px 5px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      cursor: grab;
+      touch-action: none;
+      z-index: 3;
+    }
+    .card-grid.mode-view .card-item { cursor: pointer; }
+    .card-grid.mode-view .card-item .card-drag-handle { display: none; }
+
+    .card-item:hover .card-drag-handle { opacity: 1; }
+    .card-grid.mode-organize .card-drag-handle { opacity: 1; font-size: 1rem; padding: 3px 7px; }
+    .card-grid.mode-organize .card-remove-btn { opacity: 1; width: 26px; height: 26px; font-size: 0.9rem; }
+    .card-grid.mode-organize .card-item:hover { transform: none; box-shadow: 0 0 0 2px var(--gold-dim); }
+
+    .card-item .card-name-tooltip {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      padding: 1.5rem 0.5rem 0.4rem;
+      font-family: 'Cinzel', serif;
+      font-size: 0.65rem;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      opacity: 0;
+      transition: opacity 0.2s;
+      border-radius: 0 0 8px 8px;
+    }
+
+    .card-item:hover .card-name-tooltip { opacity: 1; }
+
+    .card-item .card-remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      color: #c47a7a;
+      font-size: 0.8rem;
+      line-height: 1;
+    }
+
+    .card-item:hover .card-remove-btn { opacity: 1; }
+    .card-item .card-remove-btn:hover { color: var(--red); }
+
+    /* dragging state */
+    .card-item.dragging {
+      opacity: 0.4;
+      transform: scale(0.95);
+    }
+
+    .card-item.drag-over {
+      transform: scale(1.04);
+      box-shadow: 0 0 0 2px var(--gold);
+    }
+
+    /* loading placeholder */
+    .card-placeholder {
+      background: linear-gradient(135deg, var(--bg3), var(--bg2));
+      border-radius: 8px;
+      aspect-ratio: 63/88;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-family: 'Cinzel', serif;
+      letter-spacing: 0.05em;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    /* ===== SEARCH MODAL ===== */
+    .search-results {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 0.7rem;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+
+    .search-result-card {
+      position: relative;
+      cursor: pointer;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+
+    .search-result-card:hover { transform: scale(1.04); border-color: var(--gold-dim); }
+    .search-result-card.selected { border-color: var(--gold); }
+    .search-result-card.already-added { border-color: var(--owned); opacity: 0.6; pointer-events: none; }
+
+    .search-result-card img { width: 100%; display: block; border-radius: 4px; }
+
+    .search-result-check {
+      position: absolute;
+      top: 4px; right: 4px;
+      background: var(--gold);
+      color: #000;
+      border-radius: 50%;
+      width: 18px; height: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem;
+    }
+
+    .search-input-row {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    .search-input-row input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.6rem 0.8rem;
+      color: var(--text);
+      font-family: 'Crimson Pro', serif;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .search-input-row input:focus { border-color: var(--gold-dim); }
+
+    /* ===== IMPORT MODAL ===== */
+    .import-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.2rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .import-tab {
+      padding: 0.5rem 1rem;
+      font-family: 'Cinzel', serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      color: var(--text-dim);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+
+    .import-tab.active {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+    }
+
+    .import-results {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .import-result-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .import-result-row .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-ok { background: var(--owned); }
+    .dot-err { background: var(--red); }
+    .dot-skip { background: var(--text-muted); }
+
+    /* ===== DROP ZONE ===== */
+    .drop-zone {
+      border: 2px dashed var(--border-bright);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+
+    .drop-zone.drag-active {
+      border-color: var(--gold);
+      color: var(--gold);
+      background: rgba(201,168,76,0.05);
+    }
+
+    /* ===== GLOBAL DRAG DROP TARGET for Scryfall ===== */
+    .scryfall-drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      border: 4px solid var(--gold);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .scryfall-drop-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .scryfall-drop-overlay .inner {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 1.4rem;
+      color: var(--gold);
+      text-align: center;
+      text-shadow: 0 0 30px rgba(201,168,76,0.5);
+    }
+
+    .scryfall-drop-overlay .inner span {
+      display: block;
+      font-family: 'Cinzel', serif;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== TOAST ===== */
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 9000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg2);
+      border: 1px solid var(--border-bright);
+      border-radius: 6px;
+      padding: 0.7rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text);
+      animation: slideUp 0.2s ease;
+      max-width: 280px;
+    }
+
+    .toast.success { border-color: var(--owned); }
+    .toast.error { border-color: var(--red); }
+
+    /* ===== LOADING ===== */
+    .loading-spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--border-bright);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+
+    /* ===== CONFIRM DIALOG ===== */
+    .confirm-text {
+      color: var(--text-dim);
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ─── Supabase ────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BkMOyjHirWBxgR-KzwdqtQ_bH8MzuI1';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = 'success') => {
+    const id = Date.now();
+    setToasts(t => [...t, { id, msg, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+  }, []);
+  return { toasts, add };
+}
+
+function ToastContainer({ toasts }) {
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Scryfall helpers ─────────────────────────────────────────────────────────
+async function scryfallSearch(q, allPrintings = false) {
+  // Always include extras (silver border, test cards, planes, schemes, etc.)
+  const query = q.includes('include:extras') ? q : `${q} include:extras`;
+  const unique = allPrintings ? 'prints' : 'cards';
+  const order = allPrintings ? '&order=released&dir=asc' : '';
+  const r = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=${unique}${order}`);
+  if (!r.ok) return [];
+  const d = await r.json();
+  return d.data || [];
+}
+
+async function scryfallByName(name) {
+  const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+async function scryfallById(id) {
+  const r = await fetch(`https://api.scryfall.com/cards/${id}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+async function scryfallBySetNumber(set, number) {
+  const r = await fetch(`https://api.scryfall.com/cards/${encodeURIComponent(set)}/${encodeURIComponent(number)}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+
+function cardImageUri(card) {
+  if (!card) return null;
+  if (card.image_uris) return card.image_uris.normal;
+  if (card.card_faces) return card.card_faces[0]?.image_uris?.normal;
+  return null;
+}
+
+// ─── Modal ───────────────────────────────────────────────────────────────────
+function Modal({ onClose, children, wide }) {
+  useEffect(() => {
+    const handler = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={`modal ${wide ? 'modal-wide' : ''}`}>{children}</div>
+    </div>
+  );
+}
+
+// ─── Confirm Modal ───────────────────────────────────────────────────────────
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <Modal onClose={onCancel}>
+      <div className="modal-title">Confirm</div>
+      <p className="confirm-text">{message}</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+        <button className="btn btn-danger" onClick={onConfirm}>Delete</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── New / Edit List Modal ────────────────────────────────────────────────────
+function ListFormModal({ initial, onSave, onClose }) {
+  const [name, setName] = useState(initial?.name || '');
+  const [desc, setDesc] = useState(initial?.description || '');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    await onSave({ name: name.trim(), description: desc.trim() });
+    setSaving(false);
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="modal-title">{initial ? 'Edit List' : 'New Collection List'}</div>
+      <div className="field">
+        <label>List Name</label>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. All Jace Cards" autoFocus />
+      </div>
+      <div className="field">
+        <label>Description (optional)</label>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="A short description..." />
+      </div>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-gold" onClick={handleSave} disabled={saving || !name.trim()}>
+          {saving ? <><span className="loading-spinner"/> Saving…</> : (initial ? 'Save Changes' : 'Create List')}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Scryfall Search Modal ────────────────────────────────────────────────────
+function SearchModal({ existingIds, onAdd, onClose }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState([]);
+  const [allPrintings, setAllPrintings] = useState(false);
+
+  async function doSearch(printingsOverride) {
+    if (!query.trim()) return;
+    setLoading(true);
+    const usePrintings = printingsOverride !== undefined ? printingsOverride : allPrintings;
+    const r = await scryfallSearch(query, usePrintings);
+    setResults(r);
+    setLoading(false);
+  }
+
+  function toggleSelect(card) {
+    if (existingIds.includes(card.id)) return;
+    setSelected(s => s.find(c => c.id === card.id) ? s.filter(c => c.id !== card.id) : [...s, card]);
+  }
+
+  async function handleAdd() {
+    await onAdd(selected);
+    onClose();
+  }
+
+  function handlePrintingsToggle() {
+    const next = !allPrintings;
+    setAllPrintings(next);
+    if (results.length > 0) doSearch(next); // re-run if there are already results
+  }
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="modal-title">Search Scryfall</div>
+      <div className="search-input-row">
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && doSearch()}
+          placeholder="Search for cards…"
+          autoFocus
+        />
+        <button className="btn btn-gold" onClick={() => doSearch()} disabled={loading}>
+          {loading ? <span className="loading-spinner"/> : 'Search'}
+        </button>
+      </div>
+      <div style={{marginTop:'0.7rem', display:'flex', alignItems:'center', gap:'0.5rem'}}>
+        <label style={{display:'flex', alignItems:'center', gap:'0.4rem', cursor:'pointer', userSelect:'none', fontFamily:'Cinzel', fontSize:'0.72rem', letterSpacing:'0.08em', color: allPrintings ? 'var(--gold)' : 'var(--text-muted)'}}>
+          <input
+            type="checkbox"
+            checked={allPrintings}
+            onChange={handlePrintingsToggle}
+            style={{accentColor:'var(--gold)', width:'13px', height:'13px'}}
+          />
+          Show all printings
+        </label>
+        {allPrintings && results.length > 0 && (
+          <span style={{fontSize:'0.7rem', color:'var(--text-muted)', fontStyle:'italic'}}>
+            — results sorted by release date
+          </span>
+        )}
+      </div>
+      {results.length > 0 && (
+        <div className="search-results">
+          {results.map(card => {
+            const img = cardImageUri(card);
+            const isSel = selected.find(c => c.id === card.id);
+            const isAdded = existingIds.includes(card.id);
+            const setLabel = allPrintings ? `${card.set_name} #${card.collector_number}` : null;
+            return (
+              <div
+                key={card.id}
+                className={`search-result-card ${isSel ? 'selected' : ''} ${isAdded ? 'already-added' : ''}`}
+                onClick={() => toggleSelect(card)}
+                title={allPrintings ? `${card.name} — ${card.set_name} #${card.collector_number}` : card.name}
+              >
+                {img ? <img src={img} alt={card.name} loading="lazy" /> : (
+                  <div style={{padding:'0.5rem',fontSize:'0.7rem',color:'var(--text-dim)',fontFamily:'Cinzel',textAlign:'center',aspectRatio:'63/88',display:'flex',alignItems:'center'}}>{card.name}</div>
+                )}
+                {setLabel && (
+                  <div style={{position:'absolute',bottom:0,left:0,right:0,background:'linear-gradient(transparent,rgba(0,0,0,0.9))',padding:'1rem 0.3rem 0.3rem',fontSize:'0.58rem',fontFamily:'Cinzel',letterSpacing:'0.03em',color:'var(--text-dim)',lineHeight:1.2,borderRadius:'0 0 4px 4px'}}>
+                    {card.set.toUpperCase()} #{card.collector_number}
+                  </div>
+                )}
+                {isSel && <div className="search-result-check">✓</div>}
+                {isAdded && <div className="search-result-check" style={{background:'var(--owned)'}}>✓</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-gold" onClick={handleAdd} disabled={selected.length === 0}>
+          Add {selected.length > 0 ? `${selected.length} Card${selected.length > 1 ? 's' : ''}` : 'Selected'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Import Modal ─────────────────────────────────────────────────────────────
+function ImportModal({ existingIds, onAdd, onClose, toast }) {
+  const [tab, setTab] = useState('paste');
+  const [text, setText] = useState('');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileRef = useRef();
+
+  function parseNames(raw) {
+    return raw.split('\n').map(l => l.trim()).filter(Boolean);
+  }
+
+  async function processNames(names) {
+    setLoading(true);
+    const rows = [];
+    for (const name of names) {
+      // strip leading quantity like "4x Card Name" or "4 Card Name"
+      const clean = name.replace(/^\d+x?\s+/i, '').trim();
+      if (!clean) continue;
+      const card = await scryfallByName(clean);
+      if (card) {
+        rows.push({ name: clean, card, status: existingIds.includes(card.id) ? 'skip' : 'ok' });
+      } else {
+        rows.push({ name: clean, card: null, status: 'err' });
+      }
+    }
+    setResults(rows);
+    setLoading(false);
+  }
+
+  async function handleImport() {
+    if (!results) return;
+    const toAdd = results.filter(r => r.status === 'ok').map(r => r.card);
+    if (toAdd.length === 0) { toast('Nothing new to add', 'error'); return; }
+    await onAdd(toAdd);
+    onClose();
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => { setText(e.target.result); setTab('paste'); };
+    reader.readAsText(file);
+  }
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="modal-title">Import Cards</div>
+      <div className="import-tabs">
+        {['paste', 'file'].map(t => (
+          <div key={t} className={`import-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+            {t === 'paste' ? 'Paste List' : 'From File'}
+          </div>
+        ))}
+      </div>
+
+      {tab === 'paste' && (
+        <div className="field">
+          <label>Card Names (one per line, quantities ok)</label>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={8} placeholder={"4x Lightning Bolt\n2 Counterspell\nBlack Lotus"} />
+        </div>
+      )}
+
+      {tab === 'file' && (
+        <div>
+          <div
+            className={`drop-zone ${dragActive ? 'drag-active' : ''}`}
+            onClick={() => fileRef.current.click()}
+            onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={e => { e.preventDefault(); setDragActive(false); handleFile(e.dataTransfer.files[0]); }}
+          >
+            Drop a .txt file here or click to browse
+          </div>
+          <input ref={fileRef} type="file" accept=".txt" style={{display:'none'}} onChange={e => handleFile(e.target.files[0])} />
+          {text && <p style={{marginTop:'0.5rem',fontSize:'0.85rem',color:'var(--owned)'}}>✓ File loaded — switch to "Paste List" to preview</p>}
+        </div>
+      )}
+
+      {results && (
+        <div className="import-results">
+          {results.map((r, i) => (
+            <div key={i} className="import-result-row">
+              <div className={`dot dot-${r.status}`} />
+              <span style={{color: r.status==='ok'?'var(--text)': r.status==='err'?'var(--red)':'var(--text-muted)'}}>
+                {r.name}
+              </span>
+              <span style={{marginLeft:'auto',fontSize:'0.75rem',color:'var(--text-muted)'}}>
+                {r.status === 'ok' ? '✓ found' : r.status === 'skip' ? 'already in list' : '✗ not found'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        {!results ? (
+          <button className="btn btn-gold" onClick={() => processNames(parseNames(text))} disabled={loading || !text.trim()}>
+            {loading ? <><span className="loading-spinner"/> Looking up…</> : 'Look Up Cards'}
+          </button>
+        ) : (
+          <button className="btn btn-gold" onClick={handleImport}>
+            Add {results.filter(r=>r.status==='ok').length} Cards
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Card Grid Item ───────────────────────────────────────────────────────────
+function CardItem({ entry, mode, onToggle, onRemove, onDragStart, onDragOver, onDrop, onTouchStart, isDragging, isDragOver }) {
+  const img = entry.cardData ? cardImageUri(entry.cardData) : null;
+  const isOrganize = mode === 'organize';
+
+  return (
+    <div
+      className={`card-item ${entry.owned ? 'owned' : 'missing'} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+      data-entryid={entry.id}
+      onClick={() => !isOrganize && onToggle(entry)}
+      draggable={isOrganize}
+      onDragStart={isOrganize ? (e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(entry); }) : undefined}
+      onDragOver={isOrganize ? (e => { e.preventDefault(); onDragOver(entry); }) : undefined}
+      onDrop={isOrganize ? (e => { e.preventDefault(); onDrop(entry); }) : undefined}
+      title={entry.cardData?.name}
+    >
+      {img ? (
+        <img src={img} alt={entry.cardData?.name} loading="lazy" />
+      ) : (
+        <div className="card-placeholder">{entry.scryfall_id.slice(0,8)}…</div>
+      )}
+      <div className="card-overlay" />
+      <div className="card-drag-handle" onTouchStart={e => onTouchStart(entry, e)}>⠿</div>
+      <div className="card-name-tooltip">{entry.cardData?.name}</div>
+      <button
+        className="card-remove-btn"
+        onClick={e => { e.stopPropagation(); onRemove(entry); }}
+        title="Remove from list"
+      >✕</button>
+    </div>
+  );
+}
+
+// ─── List Detail View ─────────────────────────────────────────────────────────
+function ListView({ list, onBack, toast }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [confirm, setConfirm] = useState(null);
+  const [scryfallDragActive, setScryfallDragActive] = useState(false);
+  const [mode, setMode] = useState('view'); // 'view' | 'organize'
+  const dragItem = useRef(null);
+  const dragOver = useRef(null);
+  const [dragId, setDragId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+  // Touch drag state
+  const touchDragItem = useRef(null);
+  const touchDragOverId = useRef(null);
+  const touchClone = useRef(null);
+
+  async function loadCards() {
+    setLoading(true);
+    const { data, error } = await sb.from('list_cards').select('*').eq('list_id', list.id).order('position');
+    if (error) { toast('Failed to load cards', 'error'); setLoading(false); return; }
+    // fetch card data from scryfall for each
+    const enriched = await Promise.all(data.map(async entry => {
+      const card = await scryfallById(entry.scryfall_id);
+      return { ...entry, cardData: card };
+    }));
+    setEntries(enriched);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadCards(); }, [list.id]);
+
+  // Global drag events for Scryfall drag-and-drop
+  useEffect(() => {
+    function onDragEnter(e) {
+      // Check if drag has image (could be from Scryfall)
+      const types = [...(e.dataTransfer?.types || [])];
+      if (types.includes('text/html') || types.includes('text/uri-list')) {
+        setScryfallDragActive(true);
+      }
+    }
+    function onDragLeave(e) {
+      if (!e.relatedTarget) setScryfallDragActive(false);
+    }
+    function onDragOver(e) { e.preventDefault(); }
+    async function onDrop(e) {
+      e.preventDefault();
+      setScryfallDragActive(false);
+      const html = e.dataTransfer.getData('text/html');
+      const plain = e.dataTransfer.getData('text/plain');
+      const uri = e.dataTransfer.getData('text/uri-list');
+
+      let card = null;
+
+      const uuidRe = /[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}/i;
+      function cleanName(s) {
+        return s.replace(/\s*\([^)]*#\d+[^)]*\)/g, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+      }
+      function normalizeUuid(raw) {
+        const s = raw.replace(/-/g,'');
+        return s.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
+      }
+
+      // Scryfall card page URL format: /card/{set}/{number}/{name-slug}
+      // This is the most precise source — gives us exact set+collector number
+      function extractSetNumber(url) {
+        const m = url.match(/scryfall\.com\/card\/([a-z0-9]+)\/([^/\s?]+)/i);
+        if (m) return { set: m[1], number: m[2] };
+        return null;
+      }
+
+      // Scryfall image CDN URL: cards.scryfall.io/normal/front/X/X/{uuid}.jpg
+      function extractUuidFromImageUrl(url) {
+        const m = url.match(/cards\.scryfall\.io\/[^/]+\/[^/]+\/[^/]+\/[^/]+\/([0-9a-f-]{36})\.jpg/i);
+        return m ? m[1] : null;
+      }
+
+      // 1. UUID in plain text (direct card ID)
+      if (!card && plain) {
+        const m = plain.match(uuidRe);
+        if (m) card = await scryfallById(normalizeUuid(m[0]));
+      }
+
+      // 2. Scryfall page URL in uri-list — extract set+number for exact printing
+      if (!card && uri) {
+        for (const line of uri.split(/\s+/)) {
+          const sn = extractSetNumber(line);
+          if (sn) { card = await scryfallBySetNumber(sn.set, sn.number); break; }
+        }
+      }
+
+      // 3. Scryfall page URL embedded inside dropped HTML
+      if (!card && html) {
+        const hrefMatches = [...html.matchAll(/href="([^"]*scryfall\.com\/card\/[^"]+)"/gi)];
+        for (const m of hrefMatches) {
+          const sn = extractSetNumber(m[1]);
+          if (sn) { card = await scryfallBySetNumber(sn.set, sn.number); break; }
+        }
+      }
+
+      // 4. Image src UUID in dropped HTML (cards.scryfall.io CDN URL)
+      if (!card && html) {
+        const srcMatches = [...html.matchAll(/src="([^"]*cards\.scryfall\.io[^"]+)"/gi)];
+        for (const m of srcMatches) {
+          const uuid = extractUuidFromImageUrl(m[1]);
+          if (uuid) { card = await scryfallById(uuid); break; }
+        }
+      }
+
+      // 5. Scryfall image URL in uri-list
+      if (!card && uri) {
+        for (const line of uri.split(/\s+/)) {
+          const uuid = extractUuidFromImageUrl(line);
+          if (uuid) { card = await scryfallById(uuid); break; }
+        }
+      }
+
+      // 6. alt/title text fallback — name only, last resort
+      if (!card && html) {
+        const altMatch = html.match(/alt="([^"]+)"/i);
+        if (altMatch) card = await scryfallByName(cleanName(altMatch[1]));
+        if (!card) {
+          const titleMatch = html.match(/title="([^"]+)"/i);
+          if (titleMatch) card = await scryfallByName(cleanName(titleMatch[1]));
+        }
+      }
+
+      // 7. Plain text as name (no UUID, not too long)
+      if (!card && plain && plain.length < 120 && !uuidRe.test(plain)) {
+        card = await scryfallByName(cleanName(plain.trim()));
+      }
+
+      if (!card) { toast('Could not identify card from drop', 'error'); return; }
+
+      if (entries.find(e => e.scryfall_id === card.id)) {
+        toast(`${card.name} is already in this list`, 'error'); return;
+      }
+
+      await addCards([card]);
+    }
+
+    document.addEventListener('dragenter', onDragEnter);
+    document.addEventListener('dragleave', onDragLeave);
+    document.addEventListener('dragover', onDragOver);
+    document.addEventListener('drop', onDrop);
+    return () => {
+      document.removeEventListener('dragenter', onDragEnter);
+      document.removeEventListener('dragleave', onDragLeave);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('drop', onDrop);
+    };
+  }, [entries]);
+
+  async function addCards(cards) {
+    const maxPos = entries.reduce((m, e) => Math.max(m, e.position), -1);
+    const rows = cards.map((card, i) => ({
+      list_id: list.id,
+      scryfall_id: card.id,
+      owned: false,
+      position: maxPos + 1 + i,
+    }));
+    const { error } = await sb.from('list_cards').upsert(rows, { onConflict: 'list_id,scryfall_id' });
+    if (error) { toast('Failed to add cards', 'error'); return; }
+    toast(`Added ${cards.length} card${cards.length > 1 ? 's' : ''}`);
+    loadCards();
+  }
+
+  async function toggleOwned(entry) {
+    const newVal = !entry.owned;
+    const { error } = await sb.from('list_cards').update({ owned: newVal }).eq('id', entry.id);
+    if (error) { toast('Failed to update', 'error'); return; }
+    setEntries(es => es.map(e => e.id === entry.id ? { ...e, owned: newVal } : e));
+  }
+
+  async function removeCard(entry) {
+    const { error } = await sb.from('list_cards').delete().eq('id', entry.id);
+    if (error) { toast('Failed to remove', 'error'); return; }
+    toast('Card removed');
+    setEntries(es => es.filter(e => e.id !== entry.id));
+  }
+
+  // ── Drag reorder ──
+  function handleDragStart(entry) {
+    dragItem.current = entry;
+    setDragId(entry.id);
+  }
+
+  function handleDragOver(entry) {
+    dragOver.current = entry;
+    setDragOverId(entry.id);
+  }
+
+  async function handleDrop(entry) {
+    if (!dragItem.current || dragItem.current.id === entry.id) {
+      setDragId(null); setDragOverId(null); return;
+    }
+    const from = entries.findIndex(e => e.id === dragItem.current.id);
+    const to = entries.findIndex(e => e.id === entry.id);
+    const reordered = [...entries];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    const updated = reordered.map((e, i) => ({ ...e, position: i }));
+    setEntries(updated);
+    setDragId(null); setDragOverId(null);
+    dragItem.current = null; dragOver.current = null;
+    // persist positions
+    for (const e of updated) {
+      await sb.from('list_cards').update({ position: e.position }).eq('id', e.id);
+    }
+  }
+
+  // ── Touch drag reorder ──
+  function handleTouchStart(entry, e) {
+    if (mode !== 'organize') return;
+    touchDragItem.current = entry;
+    setDragId(entry.id);
+    // create a visual clone
+    const el = e.currentTarget.closest('.card-item');
+    if (el) {
+      const clone = el.cloneNode(true);
+      clone.style.cssText = `position:fixed;pointer-events:none;opacity:0.7;z-index:9000;width:${el.offsetWidth}px;border-radius:8px;`;
+      document.body.appendChild(clone);
+      touchClone.current = clone;
+    }
+  }
+
+  function handleTouchMove(e) {
+    if (!touchDragItem.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (touchClone.current) {
+      touchClone.current.style.left = (touch.clientX - 50) + 'px';
+      touchClone.current.style.top = (touch.clientY - 70) + 'px';
+    }
+    // find element under touch
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cardEl = el?.closest?.('.card-item');
+    if (cardEl) {
+      const entryId = cardEl.dataset.entryid;
+      if (entryId && entryId !== touchDragItem.current.id) {
+        touchDragOverId.current = entryId;
+        setDragOverId(entryId);
+      }
+    }
+  }
+
+  async function handleTouchEnd() {
+    if (!touchDragItem.current) return;
+    if (touchClone.current) { document.body.removeChild(touchClone.current); touchClone.current = null; }
+    if (touchDragOverId.current && touchDragOverId.current !== touchDragItem.current.id) {
+      const overEntry = entries.find(e => e.id === touchDragOverId.current);
+      if (overEntry) await handleDrop(overEntry);
+    }
+    touchDragItem.current = null;
+    touchDragOverId.current = null;
+    setDragId(null);
+    setDragOverId(null);
+  }
+
+  const owned = entries.filter(e => e.owned).length;
+  const existingIds = entries.map(e => e.scryfall_id);
+
+  return (
+    <div>
+      {/* Scryfall drag overlay */}
+      <div className={`scryfall-drop-overlay ${scryfallDragActive ? 'active' : ''}`}>
+        <div className="inner">
+          Drop Card Here
+          <span>Release to add this card to the list</span>
+        </div>
+      </div>
+
+      <div className="list-view-header">
+        <div style={{flex:1}}>
+          <div className="list-view-title">{list.name}</div>
+          {list.description && <div className="list-view-desc">{list.description}</div>}
+          <div className="list-view-stats">
+            {loading ? '—' : (
+              <><span className="owned-count">{owned}</span> / {entries.length} owned</>
+            )}
+          </div>
+        </div>
+        <div className="list-view-actions">
+          <div className="mode-toggle">
+            <button className={`mode-toggle-btn ${mode === 'view' ? 'active' : ''}`} onClick={() => setMode('view')} title="View mode — tap cards to toggle owned">
+              ◈ View
+            </button>
+            <button className={`mode-toggle-btn ${mode === 'organize' ? 'active' : ''}`} onClick={() => setMode('organize')} title="Organize mode — drag cards to reorder">
+              ⠿ Order
+            </button>
+          </div>
+          <button className="btn btn-gold" onClick={() => setShowSearch(true)}>+ Search</button>
+          <button className="btn btn-ghost" onClick={() => setShowImport(true)}>↑ Import</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : entries.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon">✦</div>
+          <p>No cards yet. Add some via search or import,<br/>or drag a card image from Scryfall.</p>
+        </div>
+      ) : (
+        <div
+          className={`card-grid mode-${mode}`}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {entries.map(entry => (
+            <CardItem
+              key={entry.id}
+              entry={entry}
+              mode={mode}
+              onToggle={toggleOwned}
+              onRemove={e => setConfirm(e)}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onTouchStart={handleTouchStart}
+              isDragging={dragId === entry.id}
+              isDragOver={dragOverId === entry.id}
+            />
+          ))}
+        </div>
+      )}
+
+      {showSearch && (
+        <SearchModal existingIds={existingIds} onAdd={addCards} onClose={() => setShowSearch(false)} />
+      )}
+      {showImport && (
+        <ImportModal existingIds={existingIds} onAdd={addCards} onClose={() => setShowImport(false)} toast={toast} />
+      )}
+      {confirm && (
+        <ConfirmModal
+          message={`Remove "${confirm.cardData?.name || 'this card'}" from the list?`}
+          onConfirm={() => { removeCard(confirm); setConfirm(null); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Lists Home ───────────────────────────────────────────────────────────────
+function ListsHome({ onSelectList, toast }) {
+  const [lists, setLists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [stats, setStats] = useState({});
+
+  async function loadLists() {
+    setLoading(true);
+    const { data, error } = await sb.from('lists').select('*').order('created_at', { ascending: true });
+    if (error) { toast('Failed to load lists', 'error'); setLoading(false); return; }
+    setLists(data);
+    // load stats
+    for (const list of data) {
+      const { data: cards } = await sb.from('list_cards').select('owned').eq('list_id', list.id);
+      if (cards) {
+        setStats(s => ({ ...s, [list.id]: { total: cards.length, owned: cards.filter(c => c.owned).length } }));
+      }
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { loadLists(); }, []);
+
+  async function createList(fields) {
+    const { data, error } = await sb.from('lists').insert([fields]).select().single();
+    if (error) { toast('Failed to create list', 'error'); return; }
+    toast(`"${data.name}" created`);
+    setShowForm(false);
+    loadLists();
+  }
+
+  async function updateList(fields) {
+    const { error } = await sb.from('lists').update(fields).eq('id', editTarget.id);
+    if (error) { toast('Failed to update list', 'error'); return; }
+    toast('List updated');
+    setEditTarget(null);
+    loadLists();
+  }
+
+  async function deleteList(list) {
+    const { error } = await sb.from('lists').delete().eq('id', list.id);
+    if (error) { toast('Failed to delete list', 'error'); return; }
+    toast(`"${list.name}" deleted`);
+    setConfirm(null);
+    loadLists();
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:'2rem', flexWrap:'wrap', gap:'1rem'}}>
+        <div>
+          <div className="page-title">Your Collections</div>
+          <div className="page-subtitle">Track which cards you own across custom lists</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : (
+        <div className="lists-grid">
+          {lists.map(list => {
+            const s = stats[list.id];
+            return (
+              <div key={list.id} className="list-card" onClick={() => onSelectList(list)}>
+                <div className="list-card-name">{list.name}</div>
+                <div className="list-card-desc">{list.description || '\u00a0'}</div>
+                <div className="list-card-meta">
+                  <span>{s ? `${s.total} card${s.total !== 1 ? 's' : ''}` : '—'}</span>
+                  {s && s.total > 0 && (
+                    <span className="list-card-progress">{s.owned}/{s.total} owned</span>
+                  )}
+                </div>
+                <div className="list-card-actions" onClick={e => e.stopPropagation()}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(list)}>Edit</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setConfirm(list)}>Delete</button>
+                </div>
+              </div>
+            );
+          })}
+          <div className="list-card new-list-card" onClick={() => setShowForm(true)}>
+            <span className="plus">+</span> New List
+          </div>
+        </div>
+      )}
+
+      {showForm && <ListFormModal onSave={createList} onClose={() => setShowForm(false)} />}
+      {editTarget && <ListFormModal initial={editTarget} onSave={updateList} onClose={() => setEditTarget(null)} />}
+      {confirm && (
+        <ConfirmModal
+          message={`Delete "${confirm.name}" and all its cards?`}
+          onConfirm={() => deleteList(confirm)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [view, setView] = useState('home'); // 'home' | 'list'
+  const [activeList, setActiveList] = useState(null);
+  const { toasts, add: toast } = useToasts();
+
+  function selectList(list) {
+    setActiveList(list);
+    setView('list');
+  }
+
+  function goHome() {
+    setView('home');
+    setActiveList(null);
+  }
+
+  return (
+    <div className="app">
+      <header>
+        <div className="header-logo" onClick={goHome}>
+          Grimoire
+          <span>Collection Tracker</span>
+        </div>
+        <div className="header-sep" />
+        <div className="breadcrumb">
+          <span className={view === 'home' ? 'crumb-active' : ''} style={{cursor:'pointer'}} onClick={goHome}>Lists</span>
+          {view === 'list' && activeList && (
+            <>
+              <span className="sep">›</span>
+              <span className="crumb-active">{activeList.name}</span>
+            </>
+          )}
+        </div>
+        {view === 'list' && (
+          <button className="btn btn-ghost btn-sm" style={{marginLeft:'1rem'}} onClick={goHome}>← Back</button>
+        )}
+      </header>
+
+      <main>
+        {view === 'home' && <ListsHome onSelectList={selectList} toast={toast} />}
+        {view === 'list' && activeList && <ListView list={activeList} onBack={goHome} toast={toast} />}
+      </main>
+
+      <ToastContainer toasts={toasts} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
