@@ -830,7 +830,11 @@ const { useState, useEffect, useCallback, useRef } = React;
 // ─── Supabase ────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_BkMOyjHirWBxgR-KzwdqtQ_bH8MzuI1';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: {
+    headers: { 'x-app-secret': '5223jace' }
+  }
+});
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 function useToasts() {
