@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mi Tiendita</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+<style>
+  :root {
+    --bg: #FFF8F0;
+    --surface: #FFFFFF;
+    --surface2: #FFF0E0;
+    --primary: #FF6B35;
+    --primary-dark: #E85520;
+    --secondary: #2EC4B6;
+    --accent: #FFD166;
+    --danger: #EF476F;
+    --success: #06D6A0;
+    --text: #1A1A2E;
+    --text-soft: #6B7280;
+    --border: #F0E6D3;
+    --shadow: 0 4px 20px rgba(255,107,53,0.12);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  #root { min-height: 100vh; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Animations */
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-8px); }
+    80% { transform: translateX(8px); }
+  }
+  .anim-slideUp { animation: slideUp 0.3s ease forwards; }
+  .anim-pop { animation: pop 0.2s ease; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+const { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = Recharts;
+
+// ─── CONFIG ────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BkMOyjHirWBxgR-KzwdqtQ_bH8MzuI1';
+const APP_SECRET   = '5223jace';
+
+// Datos de transferencia (hardcoded, editar aquí si cambian)
+const TRANSFER_INFO = {
+  titular: 'Tu Nombre',
+  banco: 'BBVA',
+  clabe: '012345678901234567',
+};
+
+const DENOMINACIONES = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
+const MARGEN_ALERTA = 2; // pesos
+
+// ─── SUPABASE HELPER ───────────────────────────────────────────
+async function sb(method, table, body = null, params = '') {
+  const url = `${SUPABASE_URL}/rest/v1/${table}${params}`;
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'x-app-secret': APP_SECRET,
+      'Prefer': method === 'POST' ? 'return=representation' : 'return=representation',
+    },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+const db = {
+  get: (table, params = '') => sb('GET', table, null, params),
+  post: (table, body) => sb('POST', table, body),
+  patch: (table, params, body) => sb('PATCH', table, body, params),
+  delete: (table, params) => sb('DELETE', table, null, params),
+};
+
+// ─── UTILS ─────────────────────────────────────────────────────
+const fmt = (n) => `$${Number(n).toFixed(2)}`;
+const fmtDate = (d) => new Date(d).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' });
+const fmtTime = (d) => new Date(d).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+
+// ─── COMPONENTS ────────────────────────────────────────────────
+
+function Btn({ children, onClick, color = 'primary', size = 'md', disabled, full, style, className }) {
+  const colors = {
+    primary: { bg: 'var(--primary)', text: '#fff', hover: 'var(--primary-dark)' },
+    secondary: { bg: 'var(--secondary)', text: '#fff', hover: '#25a99d' },
+    accent: { bg: 'var(--accent)', text: 'var(--text)', hover: '#f0c040' },
+    danger: { bg: 'var(--danger)', text: '#fff', hover: '#d63660' },
+    success: { bg: 'var(--success)', text: '#fff', hover: '#04b888' },
+    ghost: { bg: 'transparent', text: 'var(--text-soft)', hover: 'var(--border)' },
+    surface: { bg: 'var(--surface)', text: 'var(--text)', hover: 'var(--surface2)' },
+  };
+  const c = colors[color] || colors.primary;
+  const sizes = { sm: '8px 14px', md: '12px 20px', lg: '16px 28px', xl: '18px 36px' };
+  const fontSizes = { sm: '13px', md: '15px', lg: '17px', xl: '20px' };
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      style={{
+        background: c.bg,
+        color: c.text,
+        border: 'none',
+        borderRadius: 'var(--radius-sm)',
+        padding: sizes[size] || sizes.md,
+        fontSize: fontSizes[size] || fontSizes.md,
+        fontFamily: 'Nunito, sans-serif',
+        fontWeight: 700,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        width: full ? '100%' : undefined,
+        transition: 'all 0.15s ease',
+        boxShadow: color !== 'ghost' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+        ...style,
+      }}
+      onMouseOver={e => { if (!disabled) e.currentTarget.style.background = c.hover; }}
+      onMouseOut={e => { if (!disabled) e.currentTarget.style.background = c.bg; }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Card({ children, style }) {
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      borderRadius: 'var(--radius)',
+      padding: '16px',
+      boxShadow: 'var(--shadow)',
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function Modal({ open, onClose, title, children, wide }) {
+  if (!open) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(26,26,46,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      animation: 'fadeIn 0.2s ease',
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: 'var(--surface)',
+        borderRadius: '24px 24px 0 0',
+        width: '100%',
+        maxWidth: wide ? '700px' : '480px',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        padding: '24px',
+        animation: 'slideUp 0.3s ease',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ fontFamily: 'Fredoka One', fontSize: '22px', color: 'var(--primary)' }}>{title}</h2>
+          <button onClick={onClose} style={{ background: 'var(--border)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: '18px' }}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Input({ label, value, onChange, type = 'text', placeholder, min, step, style }) {
+  return (
+    <div style={{ marginBottom: '12px', ...style }}>
+      {label && <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-soft)', display: 'block', marginBottom: '4px' }}>{label}</label>}
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        min={min}
+        step={step}
+        style={{
+          width: '100%',
+          padding: '10px 14px',
+          border: '2px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: '16px',
+          fontFamily: 'Nunito, sans-serif',
+          background: 'var(--bg)',
+          color: 'var(--text)',
+          outline: 'none',
+          transition: 'border-color 0.2s',
+        }}
+        onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+        onBlur={e => e.target.style.borderColor = 'var(--border)'}
+      />
+    </div>
+  );
+}
+
+function Toast({ msg, type, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, []);
+  const colors = { success: 'var(--success)', error: 'var(--danger)', warning: 'var(--accent)', info: 'var(--secondary)' };
+  return (
+    <div style={{
+      position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+      background: colors[type] || colors.info,
+      color: type === 'warning' ? 'var(--text)' : '#fff',
+      padding: '12px 24px',
+      borderRadius: '100px',
+      fontWeight: 700,
+      fontSize: '14px',
+      zIndex: 2000,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+      animation: 'slideUp 0.3s ease',
+      maxWidth: '90vw',
+      textAlign: 'center',
+    }}>{msg}</div>
+  );
+}
+
+// ─── LOGIN ─────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState(false);
+  const [storedPin, setStoredPin] = useState('1234');
+  const [pinActive, setPinActive] = useState(true);
+
+  useEffect(() => {
+    db.get('pos_configuracion', '?clave=in.(pin,pin_activo)').then(rows => {
+      const p = rows.find(r => r.clave === 'pin');
+      const a = rows.find(r => r.clave === 'pin_activo');
+      if (p) setStoredPin(p.valor);
+      if (a) {
+        if (a.valor === 'false') { onLogin(); return; }
+        setPinActive(a.valor !== 'false');
+      }
+    }).catch(() => onLogin());
+  }, []);
+
+  const handleKey = (k) => {
+    if (k === 'del') { setPin(p => p.slice(0, -1)); return; }
+    if (pin.length >= 6) return;
+    const next = pin + k;
+    setPin(next);
+    if (next.length >= storedPin.length) {
+      if (next === storedPin) { onLogin(); }
+      else { setError(true); setTimeout(() => { setPin(''); setError(false); }, 600); }
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: 'linear-gradient(135deg, #FF6B35 0%, #FF9068 100%)',
+      padding: '24px',
+    }}>
+      <div style={{ fontFamily: 'Fredoka One', fontSize: '42px', color: '#fff', marginBottom: '8px' }}>🛒 Mi Tiendita</div>
+      <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '40px', fontSize: '16px' }}>Ingresa tu PIN</p>
+      
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
+        {[0,1,2,3,4,5].slice(0, storedPin.length > 4 ? 6 : 4).map(i => (
+          <div key={i} style={{
+            width: 16, height: 16, borderRadius: '50%',
+            background: i < pin.length ? '#fff' : 'rgba(255,255,255,0.3)',
+            animation: error ? 'shake 0.4s ease' : 'none',
+            transition: 'background 0.2s',
+          }} />
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', maxWidth: '260px', width: '100%' }}>
+        {[1,2,3,4,5,6,7,8,9,'',0,'del'].map((k, i) => (
+          <button key={i} onClick={() => k !== '' && handleKey(String(k))}
+            disabled={k === ''}
+            style={{
+              background: k === 'del' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.15)',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderRadius: '14px',
+              color: '#fff',
+              fontSize: k === 'del' ? '20px' : '26px',
+              fontFamily: 'Fredoka One',
+              padding: '18px',
+              cursor: k === '' ? 'default' : 'pointer',
+              opacity: k === '' ? 0 : 1,
+              transition: 'all 0.1s',
+            }}
+            onMouseOver={e => { if (k !== '') e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; }}
+            onMouseOut={e => { if (k !== '') e.currentTarget.style.background = k === 'del' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.15)'; }}
+          >
+            {k === 'del' ? '⌫' : k}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── VENTA VIEW ────────────────────────────────────────────────
+function VentaView({ showToast }) {
+  const [productos, setProductos] = useState([]);
+  const [carrito, setCarrito] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [cobrarModal, setCobrarModal] = useState(false);
+  const [stockMap, setStockMap] = useState({});
+
+  const loadProductos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [prods, entradas, ventas, vitems] = await Promise.all([
+        db.get('pos_productos', '?activo=eq.true&order=nombre'),
+        db.get('pos_inventario_entradas', '?select=producto_id,cantidad'),
+        db.get('pos_ventas', '?select=id'),
+        db.get('pos_venta_items', '?select=producto_id,cantidad,venta_id'),
+      ]);
+      const entradasMap = {};
+      entradas.forEach(e => { entradasMap[e.producto_id] = (entradasMap[e.producto_id] || 0) + e.cantidad; });
+      const ventasIds = new Set(ventas.map(v => v.id));
+      const salidaMap = {};
+      vitems.forEach(i => {
+        if (ventasIds.has(i.venta_id)) salidaMap[i.producto_id] = (salidaMap[i.producto_id] || 0) + i.cantidad;
+      });
+      const sm = {};
+      prods.forEach(p => { sm[p.id] = (entradasMap[p.id] || 0) - (salidaMap[p.id] || 0); });
+      setStockMap(sm);
+      setProductos(prods);
+    } catch(e) { showToast('Error cargando productos', 'error'); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadProductos(); }, []);
+
+  const setQty = (id, delta) => {
+    const stock = stockMap[id] || 0;
+    setCarrito(prev => {
+      const cur = prev[id] || 0;
+      const next = Math.max(0, Math.min(cur + delta, stock));
+      if (next === 0) { const {[id]:_, ...rest} = prev; return rest; }
+      return { ...prev, [id]: next };
+    });
+  };
+
+  const total = useMemo(() => {
+    return Object.entries(carrito).reduce((sum, [id, qty]) => {
+      const p = productos.find(p => p.id === id);
+      return sum + (p ? p.precio_venta * qty : 0);
+    }, 0);
+  }, [carrito, productos]);
+
+  const itemsEnCarrito = Object.values(carrito).reduce((a, b) => a + b, 0);
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-soft)' }}>Cargando...</div>;
+
+  return (
+    <div style={{ padding: '16px', paddingBottom: itemsEnCarrito > 0 ? 140 : 80 }}>
+      <h2 style={{ fontFamily: 'Fredoka One', fontSize: '24px', color: 'var(--primary)', marginBottom: '16px' }}>🛒 Nueva Venta</h2>
+
+      {productos.length === 0 && (
+        <Card style={{ textAlign: 'center', padding: '40px' }}>
+          <div style={{ fontSize: '48px' }}>📦</div>
+          <p style={{ color: 'var(--text-soft)', marginTop: 8 }}>No hay productos en el catálogo</p>
+        </Card>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+        {productos.map(p => {
+          const stock = stockMap[p.id] || 0;
+          const qty = carrito[p.id] || 0;
+          const agotado = stock <= 0;
+          return (
+            <Card key={p.id} style={{
+              opacity: agotado ? 0.5 : 1,
+              border: qty > 0 ? '2px solid var(--primary)' : '2px solid transparent',
+              transition: 'all 0.2s',
+              position: 'relative',
+            }}>
+              {qty > 0 && (
+                <div style={{
+                  position: 'absolute', top: -8, right: -8,
+                  background: 'var(--primary)', color: '#fff',
+                  borderRadius: '50%', width: 24, height: 24,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '12px', fontWeight: 900,
+                }}>
+                  {qty}
+                </div>
+              )}
+              <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: 4, lineHeight: 1.2 }}>{p.nombre}</div>
+              {p.categoria && <div style={{ fontSize: '11px', color: 'var(--text-soft)', marginBottom: 4 }}>{p.categoria}</div>}
+              <div style={{ fontFamily: 'Fredoka One', fontSize: '20px', color: 'var(--primary)', marginBottom: 8 }}>{fmt(p.precio_venta)}</div>
+              <div style={{ fontSize: '11px', color: stock <= 3 && !agotado ? 'var(--danger)' : 'var(--text-soft)', marginBottom: 8 }}>
+                {agotado ? '❌ Agotado' : `📦 ${stock} pzas`}
+              </div>
+              {!agotado && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button onClick={() => setQty(p.id, -1)} disabled={qty === 0}
+                    style={{ background: qty > 0 ? 'var(--danger)' : 'var(--border)', color: qty > 0 ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8, width: 34, height: 34, fontSize: 20, fontWeight: 900, cursor: qty > 0 ? 'pointer' : 'default' }}>−</button>
+                  <span style={{ fontWeight: 900, fontSize: 18, minWidth: 24, textAlign: 'center' }}>{qty}</span>
+                  <button onClick={() => setQty(p.id, 1)} disabled={qty >= stock}
+                    style={{ background: qty < stock ? 'var(--success)' : 'var(--border)', color: qty < stock ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8, width: 34, height: 34, fontSize: 20, fontWeight: 900, cursor: qty < stock ? 'pointer' : 'default' }}>+</button>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      {itemsEnCarrito > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 72, left: 0, right: 0,
+          background: 'var(--surface)',
+          borderTop: '2px solid var(--border)',
+          padding: '16px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
+          zIndex: 100,
+          maxWidth: '480px',
+          margin: '0 auto',
+        }}>
+          <div>
+            <div style={{ fontSize: '12px', color: 'var(--text-soft)', fontWeight: 700 }}>{itemsEnCarrito} artículos</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: '28px', color: 'var(--text)' }}>{fmt(total)}</div>
+          </div>
+          <Btn size="lg" onClick={() => setCobrarModal(true)}>💳 Cobrar</Btn>
+        </div>
+      )}
+
+      {cobrarModal && (
+        <CobrarModal
+          total={total}
+          carrito={carrito}
+          productos={productos}
+          onClose={() => setCobrarModal(false)}
+          onDone={() => { setCobrarModal(false); setCarrito({}); loadProductos(); showToast('✅ Venta registrada', 'success'); }}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── COBRAR MODAL ──────────────────────────────────────────────
+function CobrarModal({ total, carrito, productos, onClose, onDone, showToast }) {
+  const [metodo, setMetodo] = useState(null); // 'efectivo' | 'transferencia'
+  const [efectivoRecibido, setEfectivoRecibido] = useState(0);
+  const [denominaciones, setDenominaciones] = useState({});
+  const [trackDenom, setTrackDenom] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [cobrado, setCobrado] = useState(false);
+  const [cambio, setCambio] = useState(0);
+
+  const addDenom = (d) => {
+    setEfectivoRecibido(prev => prev + d);
+    if (trackDenom) setDenominaciones(prev => ({ ...prev, [d]: (prev[d] || 0) + 1 }));
+  };
+
+  const handleCobrar = async () => {
+    setSaving(true);
+    try {
+      const cambioVal = metodo === 'efectivo' ? Math.max(0, efectivoRecibido - total) : 0;
+      // Insertar venta
+      const [venta] = await db.post('pos_ventas', {
+        total, metodo_pago: metodo, cambio_entregado: cambioVal
+      });
+      // Insertar items
+      const items = Object.entries(carrito).map(([id, qty]) => {
+        const p = productos.find(p => p.id === id);
+        return { venta_id: venta.id, producto_id: id, cantidad: qty, precio_unitario_al_momento: p.precio_venta };
+      });
+      await Promise.all(items.map(i => db.post('pos_venta_items', i)));
+
+      // Movimiento de capital
+      await db.post('pos_capital_movimientos', {
+        tipo: 'venta', monto: total,
+        concepto: `Venta ${metodo} - ${Object.keys(carrito).length} productos`,
+        referencia_id: venta.id, referencia_tipo: 'venta'
+      });
+
+      // Movimiento capital por cambio entregado
+      if (cambioVal > 0) {
+        await db.post('pos_capital_movimientos', {
+          tipo: 'cambio', monto: -cambioVal,
+          concepto: `Cambio entregado venta`,
+          referencia_id: venta.id, referencia_tipo: 'venta'
+        });
+      }
+
+      // Denominaciones opcionales
+      if (trackDenom && metodo === 'efectivo') {
+        const denoms = Object.entries(denominaciones);
+        if (denoms.length > 0) {
+          await Promise.all(denoms.map(([d, c]) =>
+            db.post('pos_denominacion_movimientos', {
+              referencia_id: venta.id, referencia_tipo: 'venta',
+              denominacion: parseFloat(d), cantidad: c, es_entrada: true
+            })
+          ));
+        }
+      }
+
+      setCambio(cambioVal);
+      setCobrado(true);
+    } catch(e) {
+      showToast('Error al registrar venta', 'error');
+    }
+    setSaving(false);
+  };
+
+  if (cobrado) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'linear-gradient(135deg, var(--success), #04b888)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '40px', animation: 'fadeIn 0.3s ease',
+      }}>
+        <div style={{ fontSize: '80px', marginBottom: '16px' }}>✅</div>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: '32px', color: '#fff', marginBottom: '8px' }}>¡Cobrado!</div>
+        <div style={{ fontSize: '48px', fontFamily: 'Fredoka One', color: '#fff', marginBottom: '8px' }}>{fmt(total)}</div>
+        {cambio > 0 && (
+          <Card style={{ marginTop: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>Cambio a entregar</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: '40px' }}>{fmt(cambio)}</div>
+          </Card>
+        )}
+        <Btn size="xl" color="surface" style={{ marginTop: '32px', color: 'var(--success)' }} onClick={onDone}>
+          Nueva Venta
+        </Btn>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(26,26,46,0.7)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: 'var(--surface)', borderRadius: '24px 24px 0 0',
+        width: '100%', maxWidth: '480px', padding: '24px',
+        maxHeight: '90vh', overflow: 'auto',
+        animation: 'slideUp 0.3s ease',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ fontFamily: 'Fredoka One', fontSize: '22px', color: 'var(--primary)' }}>Cobrar</h2>
+          <button onClick={onClose} style={{ background: 'var(--border)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+
+        <div style={{ fontFamily: 'Fredoka One', fontSize: '36px', textAlign: 'center', marginBottom: '20px', color: 'var(--text)' }}>
+          {fmt(total)}
+        </div>
+
+        {!metodo && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <button onClick={() => setMetodo('efectivo')} style={{
+              padding: '28px 16px', borderRadius: 16, border: '3px solid var(--border)',
+              background: 'var(--bg)', cursor: 'pointer', fontSize: 40, display: 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+            }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'var(--surface2)'; }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)'; }}>
+              <span>💵</span>
+              <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>Efectivo</span>
+            </button>
+            <button onClick={() => setMetodo('transferencia')} style={{
+              padding: '28px 16px', borderRadius: 16, border: '3px solid var(--border)',
+              background: 'var(--bg)', cursor: 'pointer', fontSize: 40, display: 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+            }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--secondary)'; e.currentTarget.style.background = 'var(--surface2)'; }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)'; }}>
+              <span>📱</span>
+              <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>Transferencia</span>
+            </button>
+          </div>
+        )}
+
+        {metodo === 'transferencia' && (
+          <div style={{ animation: 'slideUp 0.3s ease' }}>
+            <Card style={{ background: 'linear-gradient(135deg, var(--secondary), #25a99d)', color: '#fff', marginBottom: 16 }}>
+              <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 4 }}>Titular</div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>{TRANSFER_INFO.titular}</div>
+              <div style={{ fontSize: 13, opacity: 0.8, marginTop: 12, marginBottom: 4 }}>Banco</div>
+              <div style={{ fontWeight: 800 }}>{TRANSFER_INFO.banco}</div>
+              <div style={{ fontSize: 13, opacity: 0.8, marginTop: 12, marginBottom: 4 }}>CLABE</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, letterSpacing: 2 }}>{TRANSFER_INFO.clabe}</div>
+            </Card>
+            <Btn full size="lg" color="secondary" onClick={handleCobrar} disabled={saving}>
+              {saving ? 'Guardando...' : '✅ Marcar como Cobrado'}
+            </Btn>
+            <Btn full size="md" color="ghost" onClick={() => setMetodo(null)} style={{ marginTop: 8 }}>← Cambiar método</Btn>
+          </div>
+        )}
+
+        {metodo === 'efectivo' && (
+          <div style={{ animation: 'slideUp 0.3s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--text-soft)', fontWeight: 700 }}>Recibido</div>
+                <div style={{ fontFamily: 'Fredoka One', fontSize: 32, color: efectivoRecibido >= total ? 'var(--success)' : 'var(--danger)' }}>
+                  {fmt(efectivoRecibido)}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-soft)', fontWeight: 700 }}>Cambio</div>
+                <div style={{ fontFamily: 'Fredoka One', fontSize: 32, color: 'var(--secondary)' }}>
+                  {efectivoRecibido >= total ? fmt(efectivoRecibido - total) : '--'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+              {DENOMINACIONES.map(d => (
+                <button key={d} onClick={() => addDenom(d)} style={{
+                  padding: '12px 4px', background: 'var(--accent)', border: 'none',
+                  borderRadius: 10, fontFamily: 'Fredoka One', fontSize: d >= 100 ? 14 : 16,
+                  color: 'var(--text)', cursor: 'pointer', transition: 'all 0.1s',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                }}
+                onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+                onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
+                  {d < 1 ? `${d*100}¢` : `$${d}`}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <button onClick={() => { setEfectivoRecibido(0); setDenominaciones({}); }} style={{
+                background: 'var(--border)', border: 'none', borderRadius: 8, padding: '8px 12px',
+                fontWeight: 700, cursor: 'pointer', fontSize: 13, color: 'var(--text-soft)',
+              }}>↺ Limpiar</button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-soft)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={trackDenom} onChange={e => setTrackDenom(e.target.checked)} />
+                Registrar denominaciones
+              </label>
+            </div>
+
+            <Btn full size="lg" disabled={efectivoRecibido < total || saving} onClick={handleCobrar}>
+              {saving ? 'Guardando...' : efectivoRecibido < total ? `Faltan ${fmt(total - efectivoRecibido)}` : '✅ Cobrar'}
+            </Btn>
+            <Btn full size="md" color="ghost" onClick={() => setMetodo(null)} style={{ marginTop: 8 }}>← Cambiar método</Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── INVENTARIO VIEW ───────────────────────────────────────────
+function InventarioView({ showToast }) {
+  const [productos, setProductos] = useState([]);
+  const [stockMap, setStockMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null); // {tipo: 'entrada'|'editar', producto}
+  const [entradas, setEntradas] = useState([]);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [prods, ents, ventas, vitems] = await Promise.all([
+        db.get('pos_productos', '?order=nombre'),
+        db.get('pos_inventario_entradas', '?select=producto_id,cantidad'),
+        db.get('pos_ventas', '?select=id'),
+        db.get('pos_venta_items', '?select=producto_id,cantidad,venta_id'),
+      ]);
+      const entradasMap = {};
+      ents.forEach(e => { entradasMap[e.producto_id] = (entradasMap[e.producto_id] || 0) + e.cantidad; });
+      const salidaMap = {};
+      vitems.forEach(i => { salidaMap[i.producto_id] = (salidaMap[i.producto_id] || 0) + i.cantidad; });
+      const sm = {};
+      prods.forEach(p => { sm[p.id] = (entradasMap[p.id] || 0) - (salidaMap[p.id] || 0); });
+      setStockMap(sm);
+      setProductos(prods);
+      const recents = await db.get('pos_inventario_entradas', '?order=fecha.desc&limit=20&select=*,pos_productos(nombre)');
+      setEntradas(recents);
+    } catch(e) { showToast('Error cargando inventario', 'error'); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadData(); }, []);
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-soft)' }}>Cargando...</div>;
+
+  return (
+    <div style={{ padding: '16px', paddingBottom: 80 }}>
+      <h2 style={{ fontFamily: 'Fredoka One', fontSize: '24px', color: 'var(--primary)', marginBottom: '16px' }}>📦 Inventario</h2>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '24px' }}>
+        {productos.filter(p => p.activo).map(p => {
+          const stock = stockMap[p.id] || 0;
+          const nivel = stock <= 0 ? 'danger' : stock <= 3 ? 'warning' : 'ok';
+          const colores = { danger: '#EF476F', warning: '#FFD166', ok: 'var(--success)' };
+          return (
+            <Card key={p.id} style={{ borderLeft: `4px solid ${colores[nivel]}` }}>
+              <div style={{ fontWeight: 800, fontSize: '14px', marginBottom: 4 }}>{p.nombre}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>Stock</div>
+                  <div style={{ fontFamily: 'Fredoka One', fontSize: 24, color: colores[nivel] }}>{stock}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>Precio venta</div>
+                  <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{fmt(p.precio_venta)}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <Btn size="sm" onClick={() => setModal({ tipo: 'entrada', producto: p })} full>+ Entrada</Btn>
+                <Btn size="sm" color="ghost" onClick={() => setModal({ tipo: 'editar', producto: p })}>✏️</Btn>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <h3 style={{ fontFamily: 'Fredoka One', fontSize: '18px', color: 'var(--text)', marginBottom: '12px' }}>Últimas entradas</h3>
+      {entradas.map(e => (
+        <Card key={e.id} style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>{e.pos_productos?.nombre || '—'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{fmtDate(e.fecha)} {fmtTime(e.fecha)}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontWeight: 800 }}>+{e.cantidad} pzas</div>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>c/u {fmt(e.precio_compra_unitario)}</div>
+          </div>
+        </Card>
+      ))}
+
+      {modal?.tipo === 'entrada' && (
+        <EntradaModal
+          producto={modal.producto}
+          onClose={() => setModal(null)}
+          onDone={() => { setModal(null); loadData(); }}
+          showToast={showToast}
+        />
+      )}
+      {modal?.tipo === 'editar' && (
+        <EditarProductoModal
+          producto={modal.producto}
+          onClose={() => setModal(null)}
+          onDone={() => { setModal(null); loadData(); }}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  );
+}
+
+function EntradaModal({ producto, onClose, onDone, showToast }) {
+  const [cantidad, setCantidad] = useState('');
+  const [precioCompra, setPrecioCompra] = useState('');
+  const [notas, setNotas] = useState('');
+  const [trackDenom, setTrackDenom] = useState(false);
+  const [denomSalida, setDenomSalida] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [alerta, setAlerta] = useState(null);
+  const [confirmar, setConfirmar] = useState(false);
+
+  const checkAlerta = (pc) => {
+    const pv = producto.precio_venta;
+    const pcNum = parseFloat(pc);
+    if (!isNaN(pcNum) && pcNum >= pv - MARGEN_ALERTA) {
+      setAlerta(`⚠️ Precio de compra ${fmt(pcNum)} está muy cerca del precio de venta ${fmt(pv)}. Margen: ${fmt(pv - pcNum)}`);
+    } else {
+      setAlerta(null);
+    }
+    setConfirmar(false);
+  };
+
+  const totalCosto = parseFloat(cantidad) * parseFloat(precioCompra) || 0;
+
+  const handleGuardar = async () => {
+    if (!cantidad || !precioCompra) return showToast('Llena todos los campos', 'warning');
+    if (alerta && !confirmar) { setConfirmar(true); return; }
+    setSaving(true);
+    try {
+      const [entrada] = await db.post('pos_inventario_entradas', {
+        producto_id: producto.id,
+        cantidad: parseInt(cantidad),
+        precio_compra_unitario: parseFloat(precioCompra),
+        notas,
+      });
+      await db.post('pos_capital_movimientos', {
+        tipo: 'compra', monto: -totalCosto,
+        concepto: `Compra ${producto.nombre} x${cantidad}`,
+        referencia_id: entrada.id, referencia_tipo: 'inventario_entrada'
+      });
+      if (trackDenom) {
+        const denoms = Object.entries(denomSalida);
+        await Promise.all(denoms.map(([d, c]) =>
+          db.post('pos_denominacion_movimientos', {
+            referencia_id: entrada.id, referencia_tipo: 'inventario_entrada',
+            denominacion: parseFloat(d), cantidad: c, es_entrada: false
+          })
+        ));
+      }
+      showToast('✅ Entrada registrada', 'success');
+      onDone();
+    } catch(e) { showToast('Error al guardar', 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open title={`Entrada: ${producto.nombre}`} onClose={onClose}>
+      <Input label="Cantidad (piezas)" type="number" min="1" value={cantidad} onChange={setCantidad} placeholder="Ej: 12" />
+      <Input label="Precio de compra unitario" type="number" min="0" step="0.01" value={precioCompra}
+        onChange={(v) => { setPrecioCompra(v); checkAlerta(v); }} placeholder="Ej: 8.50" />
+
+      {alerta && (
+        <Card style={{ background: 'rgba(255,209,102,0.2)', border: '2px solid var(--accent)', marginBottom: 12 }}>
+          <p style={{ fontWeight: 700, fontSize: 14 }}>{alerta}</p>
+          {confirmar && <p style={{ fontSize: 13, color: 'var(--text-soft)', marginTop: 8 }}>¿Deseas continuar de todas formas? Vuelve a presionar Guardar.</p>}
+        </Card>
+      )}
+
+      <Input label="Notas (opcional)" value={notas} onChange={setNotas} placeholder="Ej: compra en Costco" />
+
+      {totalCosto > 0 && (
+        <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontWeight: 700 }}>
+          Total a pagar: <span style={{ color: 'var(--primary)', fontFamily: 'Fredoka One', fontSize: 20 }}>{fmt(totalCosto)}</span>
+        </div>
+      )}
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--text-soft)', marginBottom: 12, cursor: 'pointer' }}>
+        <input type="checkbox" checked={trackDenom} onChange={e => setTrackDenom(e.target.checked)} />
+        Registrar denominaciones de pago (opcional)
+      </label>
+
+      {trackDenom && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-soft)', marginBottom: 8 }}>¿Con qué pagaste?</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            {DENOMINACIONES.map(d => (
+              <button key={d} onClick={() => setDenomSalida(prev => ({ ...prev, [d]: (prev[d] || 0) + 1 }))}
+                style={{ padding: '10px 4px', background: (denomSalida[d] || 0) > 0 ? 'var(--secondary)' : 'var(--border)',
+                  color: (denomSalida[d] || 0) > 0 ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8,
+                  fontWeight: 700, fontSize: 13, cursor: 'pointer', position: 'relative' }}>
+                {d < 1 ? `${d*100}¢` : `$${d}`}
+                {(denomSalida[d] || 0) > 0 && <span style={{ position: 'absolute', top: -6, right: -6, background: 'var(--danger)', color: '#fff', borderRadius: '50%', width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{denomSalida[d]}</span>}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setDenomSalida({})} style={{ marginTop: 6, fontSize: 12, background: 'none', border: 'none', color: 'var(--text-soft)', cursor: 'pointer', fontWeight: 700 }}>↺ Limpiar</button>
+        </div>
+      )}
+
+      <Btn full size="lg" onClick={handleGuardar} disabled={saving}>
+        {saving ? 'Guardando...' : confirmar ? '⚠️ Confirmar de todas formas' : '✅ Guardar Entrada'}
+      </Btn>
+    </Modal>
+  );
+}
+
+function EditarProductoModal({ producto, onClose, onDone, showToast }) {
+  const [nombre, setNombre] = useState(producto.nombre);
+  const [categoria, setCategoria] = useState(producto.categoria || '');
+  const [precioVenta, setPrecioVenta] = useState(String(producto.precio_venta));
+  const [activo, setActivo] = useState(producto.activo);
+  const [saving, setSaving] = useState(false);
+
+  const handleGuardar = async () => {
+    setSaving(true);
+    try {
+      const pvNew = parseFloat(precioVenta);
+      if (pvNew !== producto.precio_venta) {
+        await db.post('pos_precio_venta_historial', {
+          producto_id: producto.id,
+          precio_anterior: producto.precio_venta,
+          precio_nuevo: pvNew,
+        });
+      }
+      await db.patch('pos_productos', `?id=eq.${producto.id}`, {
+        nombre, categoria, precio_venta: pvNew, activo
+      });
+      showToast('✅ Producto actualizado', 'success');
+      onDone();
+    } catch(e) { showToast('Error al guardar', 'error'); }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open title="Editar Producto" onClose={onClose}>
+      <Input label="Nombre" value={nombre} onChange={setNombre} />
+      <Input label="Categoría (opcional)" value={categoria} onChange={setCategoria} placeholder="Ej: frituras, bebidas..." />
+      <Input label="Precio de venta" type="number" min="0" step="0.01" value={precioVenta} onChange={setPrecioVenta} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, marginBottom: 16, cursor: 'pointer' }}>
+        <input type="checkbox" checked={activo} onChange={e => setActivo(e.target.checked)} />
+        Producto activo (visible en ventas)
+      </label>
+      <Btn full size="lg" onClick={handleGuardar} disabled={saving}>
+        {saving ? 'Guardando...' : '✅ Guardar Cambios'}
+      </Btn>
+    </Modal>
+  );
+}
+
+// ─── CATÁLOGO VIEW ─────────────────────────────────────────────
+function CatalogoView({ showToast }) {
+  const [productos, setProductos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [categoria, setCategoria] = useState('');
+  const [precioVenta, setPrecioVenta] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const loadProductos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await db.get('pos_productos', '?order=nombre');
+      setProductos(data);
+    } catch(e) { showToast('Error cargando catálogo', 'error'); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadProductos(); }, []);
+
+  const handleAgregar = async () => {
+    if (!nombre || !precioVenta) return showToast('Nombre y precio son requeridos', 'warning');
+    setSaving(true);
+    try {
+      await db.post('pos_productos', {
+        nombre, categoria, precio_venta: parseFloat(precioVenta), activo: true
+      });
+      showToast('✅ Producto agregado', 'success');
+      setModal(false); setNombre(''); setCategoria(''); setPrecioVenta('');
+      loadProductos();
+    } catch(e) { showToast('Error al agregar', 'error'); }
+    setSaving(false);
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-soft)' }}>Cargando...</div>;
+
+  const categorias = [...new Set(productos.map(p => p.categoria).filter(Boolean))];
+
+  return (
+    <div style={{ padding: '16px', paddingBottom: 80 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontFamily: 'Fredoka One', fontSize: '24px', color: 'var(--primary)' }}>📋 Catálogo</h2>
+        <Btn onClick={() => setModal(true)} size="sm">+ Agregar</Btn>
+      </div>
+
+      {categorias.length > 0
+        ? categorias.concat([null]).map(cat => {
+            const prods = productos.filter(p => cat === null ? !p.categoria : p.categoria === cat);
+            if (prods.length === 0) return null;
+            return (
+              <div key={cat || 'sin-cat'} style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                  {cat || 'Sin categoría'}
+                </div>
+                {prods.map(p => <ProductoRow key={p.id} p={p} onEdit={() => loadProductos()} showToast={showToast} />)}
+              </div>
+            );
+          })
+        : productos.map(p => <ProductoRow key={p.id} p={p} onEdit={() => loadProductos()} showToast={showToast} />)
+      }
+
+      <Modal open={modal} onClose={() => setModal(false)} title="Nuevo Producto">
+        <Input label="Nombre" value={nombre} onChange={setNombre} placeholder="Ej: Sabritas Originales" />
+        <Input label="Categoría (opcional)" value={categoria} onChange={setCategoria} placeholder="Ej: Frituras" />
+        <Input label="Precio de venta" type="number" min="0" step="0.01" value={precioVenta} onChange={setPrecioVenta} placeholder="Ej: 12.00" />
+        <Btn full size="lg" onClick={handleAgregar} disabled={saving}>
+          {saving ? 'Guardando...' : '✅ Agregar Producto'}
+        </Btn>
+      </Modal>
+    </div>
+  );
+}
+
+function ProductoRow({ p, onEdit, showToast }) {
+  const [editModal, setEditModal] = useState(false);
+  return (
+    <>
+      <Card style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', opacity: p.activo ? 1 : 0.5 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>{p.nombre}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{p.activo ? '✅ Activo' : '❌ Inactivo'}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: 'var(--primary)' }}>{fmt(p.precio_venta)}</div>
+          <Btn size="sm" color="ghost" onClick={() => setEditModal(true)}>✏️</Btn>
+        </div>
+      </Card>
+      {editModal && <EditarProductoModal producto={p} onClose={() => setEditModal(false)} onDone={() => { setEditModal(false); onEdit(); }} showToast={showToast} />}
+    </>
+  );
+}
+
+// ─── PRÉSTAMOS VIEW ────────────────────────────────────────────
+function PrestamosView({ showToast }) {
+  const [prestamos, setPrestamos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [tipo, setTipo] = useState('retiro');
+  const [monto, setMonto] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [trackDenom, setTrackDenom] = useState(false);
+  const [denoms, setDenoms] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await db.get('pos_prestamos', '?order=fecha.desc');
+      setPrestamos(data);
+    } catch(e) { showToast('Error', 'error'); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadData(); }, []);
+
+  const saldoPendiente = prestamos.reduce((sum, p) => {
+    return sum + (p.tipo === 'retiro' ? p.monto : -p.monto);
+  }, 0);
+
+  const handleGuardar = async () => {
+    if (!monto) return showToast('Ingresa el monto', 'warning');
+    setSaving(true);
+    try {
+      const [prestamo] = await db.post('pos_prestamos', { tipo, monto: parseFloat(monto), motivo });
+      await db.post('pos_capital_movimientos', {
+        tipo: tipo === 'retiro' ? 'prestamo_salida' : 'prestamo_reposicion',
+        monto: tipo === 'retiro' ? -parseFloat(monto) : parseFloat(monto),
+        concepto: motivo || `Préstamo ${tipo}`,
+        referencia_id: prestamo.id, referencia_tipo: 'prestamo'
+      });
+      if (trackDenom) {
+        const dd = Object.entries(denoms);
+        await Promise.all(dd.map(([d, c]) =>
+          db.post('pos_denominacion_movimientos', {
+            referencia_id: prestamo.id, referencia_tipo: 'prestamo',
+            denominacion: parseFloat(d), cantidad: c,
+            es_entrada: tipo === 'reposicion'
+          })
+        ));
+      }
+      showToast('✅ Registrado', 'success');
+      setModal(false); setMonto(''); setMotivo(''); setDenoms({});
+      loadData();
+    } catch(e) { showToast('Error al guardar', 'error'); }
+    setSaving(false);
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-soft)' }}>Cargando...</div>;
+
+  return (
+    <div style={{ padding: '16px', paddingBottom: 80 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontFamily: 'Fredoka One', fontSize: '24px', color: 'var(--primary)' }}>🤝 Préstamos</h2>
+        <Btn onClick={() => setModal(true)} size="sm">+ Registrar</Btn>
+      </div>
+
+      <Card style={{
+        background: saldoPendiente > 0 ? 'linear-gradient(135deg, var(--danger), #d63660)' : 'linear-gradient(135deg, var(--success), #04b888)',
+        color: '#fff', marginBottom: 20, textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 13, opacity: 0.8 }}>Saldo pendiente de reponer</div>
+        <div style={{ fontFamily: 'Fredoka One', fontSize: 40 }}>{fmt(Math.abs(saldoPendiente))}</div>
+        <div style={{ fontSize: 13, opacity: 0.8 }}>{saldoPendiente <= 0 ? '✅ Todo repuesto' : '⚠️ Le debes al negocio'}</div>
+      </Card>
+
+      {prestamos.map(p => (
+        <Card key={p.id} style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderLeft: `4px solid ${p.tipo === 'retiro' ? 'var(--danger)' : 'var(--success)'}` }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>{p.tipo === 'retiro' ? '📤 Retiro' : '📥 Reposición'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{p.motivo || '—'}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>{fmtDate(p.fecha)}</div>
+          </div>
+          <div style={{ fontFamily: 'Fredoka One', fontSize: 22, color: p.tipo === 'retiro' ? 'var(--danger)' : 'var(--success)' }}>
+            {p.tipo === 'retiro' ? '-' : '+'}{fmt(p.monto)}
+          </div>
+        </Card>
+      ))}
+
+      <Modal open={modal} onClose={() => setModal(false)} title="Registrar Movimiento">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <button onClick={() => setTipo('retiro')} style={{
+            padding: '16px', borderRadius: 12, border: `3px solid ${tipo === 'retiro' ? 'var(--danger)' : 'var(--border)'}`,
+            background: tipo === 'retiro' ? 'rgba(239,71,111,0.1)' : 'var(--bg)', cursor: 'pointer', fontWeight: 800, fontSize: 15,
+          }}>📤 Retiro</button>
+          <button onClick={() => setTipo('reposicion')} style={{
+            padding: '16px', borderRadius: 12, border: `3px solid ${tipo === 'reposicion' ? 'var(--success)' : 'var(--border)'}`,
+            background: tipo === 'reposicion' ? 'rgba(6,214,160,0.1)' : 'var(--bg)', cursor: 'pointer', fontWeight: 800, fontSize: 15,
+          }}>📥 Reposición</button>
+        </div>
+        <Input label="Monto" type="number" min="0" step="0.01" value={monto} onChange={setMonto} placeholder="Ej: 200.00" />
+        <Input label="Motivo (opcional)" value={motivo} onChange={setMotivo} placeholder="Ej: Emergencia médica" />
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--text-soft)', marginBottom: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={trackDenom} onChange={e => setTrackDenom(e.target.checked)} />
+          Registrar denominaciones (opcional)
+        </label>
+
+        {trackDenom && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {DENOMINACIONES.map(d => (
+                <button key={d} onClick={() => setDenoms(prev => ({ ...prev, [d]: (prev[d] || 0) + 1 }))}
+                  style={{ padding: '10px 4px', background: (denoms[d] || 0) > 0 ? 'var(--secondary)' : 'var(--border)',
+                    color: (denoms[d] || 0) > 0 ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8,
+                    fontWeight: 700, fontSize: 13, cursor: 'pointer', position: 'relative' }}>
+                  {d < 1 ? `${d*100}¢` : `$${d}`}
+                  {(denoms[d] || 0) > 0 && <span style={{ position: 'absolute', top: -6, right: -6, background: 'var(--danger)', color: '#fff', borderRadius: '50%', width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{denoms[d]}</span>}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setDenoms({})} style={{ marginTop: 6, fontSize: 12, background: 'none', border: 'none', color: 'var(--text-soft)', cursor: 'pointer', fontWeight: 700 }}>↺ Limpiar</button>
+          </div>
+        )}
+
+        <Btn full size="lg" onClick={handleGuardar} disabled={saving}>
+          {saving ? 'Guardando...' : '✅ Guardar'}
+        </Btn>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── ANÁLISIS VIEW ─────────────────────────────────────────────
+function AnalisisView({ showToast }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState('7'); // días
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const diasAtras = new Date();
+        diasAtras.setDate(diasAtras.getDate() - parseInt(periodo));
+        const desde = diasAtras.toISOString();
+
+        const [ventas, vitems, productos, entradas, prestamos, capital] = await Promise.all([
+          db.get('pos_ventas', `?fecha=gte.${desde}&order=fecha`),
+          db.get('pos_venta_items', '?select=*'),
+          db.get('pos_productos', '?activo=eq.true'),
+          db.get('pos_inventario_entradas', `?fecha=gte.${desde}&order=fecha`),
+          db.get('pos_prestamos', '?order=fecha.desc'),
+          db.get('pos_capital_movimientos', '?order=fecha'),
+        ]);
+
+        // Ventas por día
+        const ventasPorDia = {};
+        ventas.forEach(v => {
+          const d = new Date(v.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+          ventasPorDia[d] = (ventasPorDia[d] || 0) + v.total;
+        });
+
+        // Ventas por método
+        const efectivo = ventas.filter(v => v.metodo_pago === 'efectivo').reduce((s, v) => s + v.total, 0);
+        const transferencia = ventas.filter(v => v.metodo_pago === 'transferencia').reduce((s, v) => s + v.total, 0);
+
+        // Top productos
+        const itemsEnPeriodo = vitems.filter(i => {
+          const v = ventas.find(v => v.id === i.venta_id);
+          return !!v;
+        });
+        const topMap = {};
+        itemsEnPeriodo.forEach(i => {
+          topMap[i.producto_id] = (topMap[i.producto_id] || 0) + i.cantidad;
+        });
+        const top = Object.entries(topMap)
+          .map(([id, qty]) => ({ nombre: productos.find(p => p.id === id)?.nombre || 'N/A', qty }))
+          .sort((a, b) => b.qty - a.qty).slice(0, 5);
+
+        // Márgenes por producto
+        const margenData = productos.map(p => {
+          const ultimaEntrada = [...entradas].filter(e => e.producto_id === p.id).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))[0];
+          const pCompra = ultimaEntrada?.precio_compra_unitario;
+          const margen = pCompra ? p.precio_venta - pCompra : null;
+          const margenPct = pCompra ? ((margen / p.precio_venta) * 100) : null;
+          return { nombre: p.nombre, pCompra, pVenta: p.precio_venta, margen, margenPct };
+        }).filter(p => p.pCompra !== undefined);
+
+        // Capital acumulado
+        let capitalAcum = 0;
+        const capitalLinea = capital.map(c => {
+          capitalAcum += c.monto;
+          return { fecha: new Date(c.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }), capital: parseFloat(capitalAcum.toFixed(2)) };
+        });
+
+        // Saldo préstamos
+        const saldoPs = prestamos.reduce((s, p) => s + (p.tipo === 'retiro' ? p.monto : -p.monto), 0);
+
+        setData({
+          totalVentas: ventas.reduce((s, v) => s + v.total, 0),
+          numVentas: ventas.length,
+          totalCompras: entradas.reduce((s, e) => s + e.cantidad * e.precio_compra_unitario, 0),
+          efectivo, transferencia,
+          ventasPorDia: Object.entries(ventasPorDia).map(([d, t]) => ({ dia: d, total: t })),
+          top, margenData, capitalLinea,
+          capitalActual: capitalAcum,
+          saldoPs,
+        });
+      } catch(e) { showToast('Error cargando análisis', 'error'); }
+      setLoading(false);
+    };
+    loadData();
+  }, [periodo]);
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-soft)' }}>Calculando...</div>;
+  if (!data) return null;
+
+  const utilidad = data.totalVentas - data.totalCompras;
+
+  return (
+    <div style={{ padding: '16px', paddingBottom: 80 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontFamily: 'Fredoka One', fontSize: '24px', color: 'var(--primary)' }}>📊 Análisis</h2>
+        <select value={periodo} onChange={e => setPeriodo(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid var(--border)', fontFamily: 'Nunito', fontWeight: 700, background: 'var(--bg)', cursor: 'pointer' }}>
+          <option value="7">7 días</option>
+          <option value="15">15 días</option>
+          <option value="30">30 días</option>
+          <option value="90">3 meses</option>
+        </select>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
+        {[
+          { label: 'Ventas totales', value: fmt(data.totalVentas), icon: '💰', color: 'var(--success)' },
+          { label: `${data.numVentas} ventas`, value: `Prom. ${data.numVentas > 0 ? fmt(data.totalVentas/data.numVentas) : '$0'}`, icon: '🛒', color: 'var(--secondary)' },
+          { label: 'Costo de compras', value: fmt(data.totalCompras), icon: '📦', color: 'var(--danger)' },
+          { label: 'Utilidad estimada', value: fmt(utilidad), icon: '📈', color: utilidad >= 0 ? 'var(--success)' : 'var(--danger)' },
+        ].map((k, i) => (
+          <Card key={i}>
+            <div style={{ fontSize: 24, marginBottom: 4 }}>{k.icon}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-soft)', fontWeight: 700 }}>{k.label}</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 20, color: k.color }}>{k.value}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Capital */}
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>💼 Estado del Capital</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-soft)', fontWeight: 700 }}>Capital actual</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 22, color: 'var(--success)' }}>{fmt(data.capitalActual)}</div>
+          </div>
+          <div style={{ background: data.saldoPs > 0 ? 'rgba(239,71,111,0.1)' : 'rgba(6,214,160,0.1)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-soft)', fontWeight: 700 }}>Préstamos pendientes</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 22, color: data.saldoPs > 0 ? 'var(--danger)' : 'var(--success)' }}>{fmt(data.saldoPs)}</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Ventas por día */}
+      {data.ventasPorDia.length > 0 && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>📅 Ventas por día</div>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={data.ventasPorDia} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="dia" tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
+              <YAxis tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
+              <Tooltip formatter={(v) => [fmt(v), 'Total']} contentStyle={{ fontFamily: 'Nunito', borderRadius: 10, fontSize: 13 }} />
+              <Bar dataKey="total" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      {/* Método de pago */}
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>💳 Por método de pago</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ background: 'rgba(255,209,102,0.15)', borderRadius: 10, padding: '12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24 }}>💵</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-soft)' }}>Efectivo</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 22, color: 'var(--text)' }}>{fmt(data.efectivo)}</div>
+          </div>
+          <div style={{ background: 'rgba(46,196,182,0.15)', borderRadius: 10, padding: '12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24 }}>📱</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-soft)' }}>Transferencia</div>
+            <div style={{ fontFamily: 'Fredoka One', fontSize: 22, color: 'var(--text)' }}>{fmt(data.transferencia)}</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Top productos */}
+      {data.top.length > 0 && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>🏆 Más vendidos</div>
+          {data.top.map((p, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: i === 0 ? 'var(--accent)' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12 }}>{i+1}</div>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{p.nombre}</span>
+              </div>
+              <span style={{ fontFamily: 'Fredoka One', fontSize: 18, color: 'var(--primary)' }}>{p.qty} pzas</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Márgenes */}
+      {data.margenData.length > 0 && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>📐 Márgenes por producto</div>
+          {data.margenData.map((p, i) => (
+            <div key={i} style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                <span>{p.nombre}</span>
+                <span style={{ color: p.margen <= MARGEN_ALERTA ? 'var(--danger)' : 'var(--success)' }}>
+                  {fmt(p.margen)} ({p.margenPct?.toFixed(0)}%)
+                </span>
+              </div>
+              <div style={{ background: 'var(--border)', borderRadius: 6, height: 8, overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.min(100, Math.max(0, p.margenPct || 0))}%`,
+                  height: '100%',
+                  background: p.margen <= MARGEN_ALERTA ? 'var(--danger)' : p.margenPct < 20 ? 'var(--accent)' : 'var(--success)',
+                  borderRadius: 6,
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-soft)', marginTop: 2 }}>
+                <span>Compra: {fmt(p.pCompra)}</span>
+                <span>Venta: {fmt(p.pVenta)}</span>
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Capital en el tiempo */}
+      {data.capitalLinea.length > 1 && (
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>📈 Capital en el tiempo</div>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={data.capitalLinea} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="fecha" tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
+              <YAxis tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
+              <Tooltip formatter={(v) => [fmt(v), 'Capital']} contentStyle={{ fontFamily: 'Nunito', borderRadius: 10, fontSize: 13 }} />
+              <Line type="monotone" dataKey="capital" stroke="var(--secondary)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── CONFIGURACIÓN VIEW ────────────────────────────────────────
+function ConfigView({ showToast, onLogout }) {
+  const [pinActual, setPinActual] = useState('');
+  const [pinNuevo, setPinNuevo] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinActivoCheck, setPinActivoCheck] = useState(true);
+  const [storedPin, setStoredPin] = useState('1234');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    db.get('pos_configuracion', '?clave=in.(pin,pin_activo)').then(rows => {
+      const p = rows.find(r => r.clave === 'pin');
+      const a = rows.find(r => r.clave === 'pin_activo');
+      if (p) setStoredPin(p.valor);
+      if (a) setPinActivoCheck(a.valor !== 'false');
+    });
+  }, []);
+
+  const handleCambiarPin = async () => {
+    if (pinActual !== storedPin) return showToast('PIN actual incorrecto', 'error');
+    if (pinNuevo.length < 4) return showToast('El PIN debe tener al menos 4 dígitos', 'warning');
+    if (pinNuevo !== pinConfirm) return showToast('Los PINs no coinciden', 'error');
+    setSaving(true);
+    try {
+      await db.patch('pos_configuracion', '?clave=eq.pin', { valor: pinNuevo });
+      setStoredPin(pinNuevo);
+      setPinActual(''); setPinNuevo(''); setPinConfirm('');
+      showToast('✅ PIN actualizado', 'success');
+    } catch(e) { showToast('Error', 'error'); }
+    setSaving(false);
+  };
+
+  const handleTogglePin = async (val) => {
+    setPinActivoCheck(val);
+    try {
+      await db.patch('pos_configuracion', '?clave=eq.pin_activo', { valor: val ? 'true' : 'false' });
+      showToast(val ? 'PIN activado' : 'PIN desactivado', 'success');
+    } catch(e) { showToast('Error', 'error'); }
+  };
+
+  return (
+    <div style={{ padding: '16px', paddingBottom: 80 }}>
+      <h2 style={{ fontFamily: 'Fredoka One', fontSize: '24px', color: 'var(--primary)', marginBottom: '20px' }}>⚙️ Configuración</h2>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>🔐 Seguridad</div>
+        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 16 }}>
+          <span style={{ fontWeight: 700 }}>PIN activo</span>
+          <div onClick={() => handleTogglePin(!pinActivoCheck)} style={{
+            width: 48, height: 26, borderRadius: 13,
+            background: pinActivoCheck ? 'var(--success)' : 'var(--border)',
+            position: 'relative', transition: 'background 0.2s', cursor: 'pointer',
+          }}>
+            <div style={{
+              width: 20, height: 20, borderRadius: '50%', background: '#fff',
+              position: 'absolute', top: 3, left: pinActivoCheck ? 25 : 3,
+              transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }} />
+          </div>
+        </label>
+        <Input label="PIN actual" type="number" value={pinActual} onChange={setPinActual} placeholder="••••" />
+        <Input label="PIN nuevo" type="number" value={pinNuevo} onChange={setPinNuevo} placeholder="Mín. 4 dígitos" />
+        <Input label="Confirmar PIN nuevo" type="number" value={pinConfirm} onChange={setPinConfirm} placeholder="Repetir PIN" />
+        <Btn full onClick={handleCambiarPin} disabled={saving}>
+          {saving ? 'Guardando...' : '🔑 Cambiar PIN'}
+        </Btn>
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>ℹ️ Información</div>
+        <p style={{ fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.6 }}>
+          <strong>Mi Tiendita</strong> v1.0<br/>
+          Datos de transferencia configurados en el HTML.<br/>
+          Para cambiar CLABE/Banco, edita la sección <code>TRANSFER_INFO</code> en el archivo.
+        </p>
+      </Card>
+
+      <Btn full color="ghost" onClick={onLogout} style={{ marginTop: 8 }}>🚪 Cerrar sesión</Btn>
+    </div>
+  );
+}
+
+// ─── NAVBAR ────────────────────────────────────────────────────
+function Navbar({ tab, setTab }) {
+  const tabs = [
+    { id: 'venta', icon: '🛒', label: 'Vender' },
+    { id: 'inventario', icon: '📦', label: 'Inventario' },
+    { id: 'catalogo', icon: '📋', label: 'Catálogo' },
+    { id: 'prestamos', icon: '🤝', label: 'Préstamos' },
+    { id: 'analisis', icon: '📊', label: 'Análisis' },
+    { id: 'config', icon: '⚙️', label: 'Config' },
+  ];
+  return (
+    <nav style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0,
+      background: 'var(--surface)',
+      borderTop: '2px solid var(--border)',
+      display: 'flex',
+      zIndex: 200,
+      maxWidth: '480px',
+      margin: '0 auto',
+      boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
+    }}>
+      {tabs.map(t => (
+        <button key={t.id} onClick={() => setTab(t.id)} style={{
+          flex: 1,
+          background: 'none',
+          border: 'none',
+          padding: '10px 4px 12px',
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2,
+          transition: 'all 0.15s',
+        }}>
+          <div style={{ fontSize: tab === t.id ? 22 : 18, transition: 'font-size 0.15s' }}>{t.icon}</div>
+          <div style={{
+            fontSize: 9,
+            fontWeight: 800,
+            color: tab === t.id ? 'var(--primary)' : 'var(--text-soft)',
+            letterSpacing: 0.3,
+          }}>{t.label}</div>
+          {tab === t.id && <div style={{ width: 20, height: 3, background: 'var(--primary)', borderRadius: 2 }} />}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ─── APP ROOT ──────────────────────────────────────────────────
+function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [tab, setTab] = useState('venta');
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((msg, type = 'info') => {
+    setToast({ msg, type });
+  }, []);
+
+  if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+
+  return (
+    <div style={{ maxWidth: '480px', margin: '0 auto', minHeight: '100vh', position: 'relative' }}>
+      {toast && <Toast key={toast.msg + Date.now()} msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      
+      {tab === 'venta' && <VentaView showToast={showToast} />}
+      {tab === 'inventario' && <InventarioView showToast={showToast} />}
+      {tab === 'catalogo' && <CatalogoView showToast={showToast} />}
+      {tab === 'prestamos' && <PrestamosView showToast={showToast} />}
+      {tab === 'analisis' && <AnalisisView showToast={showToast} />}
+      {tab === 'config' && <ConfigView showToast={showToast} onLogout={() => setLoggedIn(false)} />}
+      
+      <Navbar tab={tab} setTab={setTab} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
