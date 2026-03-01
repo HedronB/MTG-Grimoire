@@ -8,7 +8,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+
 <style>
   :root {
     --bg: #FFF8F0;
@@ -72,7 +72,6 @@
 
 <script type="text/babel">
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
-const { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } = Recharts;
 
 // ─── CONFIG ────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
@@ -1165,6 +1164,116 @@ function PrestamosView({ showToast }) {
   );
 }
 
+// ─── SVG CHARTS ───────────────────────────────────────────────
+function SvgBarChart({ data, keyX, keyY, color }) {
+  const W = 340, H = 140, padL = 44, padB = 28, padT = 8, padR = 8;
+  const vals = data.map(d => d[keyY]);
+  const maxV = Math.max(...vals, 1);
+  const bW = Math.max(8, Math.floor((W - padL - padR) / data.length) - 4);
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const [tip, setTip] = useState(null);
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg width={Math.max(W, data.length * (bW + 4) + padL + padR)} height={H} style={{ display: 'block' }}>
+        {/* Grid lines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const y = padT + innerH * (1 - f);
+          return <line key={f} x1={padL} x2={W - padR} y1={y} y2={y} stroke="#F0E6D3" strokeWidth={1} />;
+        })}
+        {/* Y labels */}
+        {[0, 0.5, 1].map(f => {
+          const y = padT + innerH * (1 - f);
+          const v = maxV * f;
+          return <text key={f} x={padL - 4} y={y + 4} textAnchor="end" fontSize={9} fill="#9CA3AF" fontFamily="Nunito">{v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v.toFixed(0)}`}</text>;
+        })}
+        {/* Bars */}
+        {data.map((d, i) => {
+          const x = padL + i * (innerW / data.length) + (innerW / data.length - bW) / 2;
+          const bH = Math.max(2, (d[keyY] / maxV) * innerH);
+          const y = padT + innerH - bH;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={bW} height={bH} fill={color} rx={3}
+                onMouseEnter={() => setTip({ i, x: x + bW/2, y, v: d[keyY] })}
+                onMouseLeave={() => setTip(null)}
+                style={{ cursor: 'pointer', opacity: tip?.i === i ? 0.8 : 1 }} />
+              <text x={x + bW/2} y={H - padB + 14} textAnchor="middle" fontSize={9} fill="#9CA3AF" fontFamily="Nunito">{d[keyX]}</text>
+            </g>
+          );
+        })}
+        {/* Tooltip */}
+        {tip && (
+          <g>
+            <rect x={tip.x - 28} y={tip.y - 24} width={56} height={20} rx={4} fill="#1A1A2E" opacity={0.85} />
+            <text x={tip.x} y={tip.y - 10} textAnchor="middle" fontSize={10} fill="#fff" fontFamily="Nunito" fontWeight={700}>{fmt(tip.v)}</text>
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+function SvgLineChart({ data, keyX, keyY, color }) {
+  const W = 340, H = 140, padL = 44, padB = 28, padT = 8, padR = 8;
+  const vals = data.map(d => d[keyY]);
+  const maxV = Math.max(...vals, 1);
+  const minV = Math.min(...vals, 0);
+  const range = maxV - minV || 1;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const [tip, setTip] = useState(null);
+
+  const pts = data.map((d, i) => {
+    const x = padL + (i / Math.max(data.length - 1, 1)) * innerW;
+    const y = padT + innerH * (1 - (d[keyY] - minV) / range);
+    return { x, y, v: d[keyY], label: d[keyX] };
+  });
+
+  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaD = pathD + ` L${pts[pts.length-1].x},${padT+innerH} L${pts[0].x},${padT+innerH} Z`;
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg width={W} height={H} style={{ display: 'block' }}>
+        {[0, 0.5, 1].map(f => {
+          const y = padT + innerH * (1 - f);
+          const v = minV + range * f;
+          return <g key={f}>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#F0E6D3" strokeWidth={1} />
+            <text x={padL - 4} y={y + 4} textAnchor="end" fontSize={9} fill="#9CA3AF" fontFamily="Nunito">{v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v.toFixed(0)}`}</text>
+          </g>;
+        })}
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaD} fill="url(#areaGrad)" />
+        <path d={pathD} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={4} fill={color} stroke="#fff" strokeWidth={2}
+            onMouseEnter={() => setTip({ ...p })}
+            onMouseLeave={() => setTip(null)}
+            style={{ cursor: 'pointer' }} />
+        ))}
+        {/* X labels — show first, middle, last */}
+        {pts.filter((_, i) => i === 0 || i === pts.length - 1 || i === Math.floor(pts.length/2)).map((p, i) => (
+          <text key={i} x={p.x} y={H - padB + 14} textAnchor="middle" fontSize={9} fill="#9CA3AF" fontFamily="Nunito">{p.label}</text>
+        ))}
+        {tip && (
+          <g>
+            <rect x={tip.x - 28} y={tip.y - 26} width={56} height={20} rx={4} fill="#1A1A2E" opacity={0.85} />
+            <text x={tip.x} y={tip.y - 12} textAnchor="middle" fontSize={10} fill="#fff" fontFamily="Nunito" fontWeight={700}>{fmt(tip.v)}</text>
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 // ─── ANÁLISIS VIEW ─────────────────────────────────────────────
 function AnalisisView({ showToast }) {
   const [data, setData] = useState(null);
@@ -1302,15 +1411,7 @@ function AnalisisView({ showToast }) {
       {data.ventasPorDia.length > 0 && (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>📅 Ventas por día</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={data.ventasPorDia} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="dia" tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
-              <YAxis tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
-              <Tooltip formatter={(v) => [fmt(v), 'Total']} contentStyle={{ fontFamily: 'Nunito', borderRadius: 10, fontSize: 13 }} />
-              <Bar dataKey="total" fill="var(--primary)" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <SvgBarChart data={data.ventasPorDia} keyX="dia" keyY="total" color="var(--primary)" />
         </Card>
       )}
 
@@ -1381,15 +1482,7 @@ function AnalisisView({ showToast }) {
       {data.capitalLinea.length > 1 && (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>📈 Capital en el tiempo</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={data.capitalLinea} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="fecha" tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
-              <YAxis tick={{ fontSize: 10, fontFamily: 'Nunito', fill: 'var(--text-soft)' }} />
-              <Tooltip formatter={(v) => [fmt(v), 'Capital']} contentStyle={{ fontFamily: 'Nunito', borderRadius: 10, fontSize: 13 }} />
-              <Line type="monotone" dataKey="capital" stroke="var(--secondary)" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          <SvgLineChart data={data.capitalLinea} keyX="fecha" keyY="capital" color="var(--secondary)" />
         </Card>
       )}
     </div>
