@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pili Ventas</title>
+<title>Mi Tiendita</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -301,7 +301,7 @@ function LoginScreen({ onLogin }) {
       background: 'linear-gradient(135deg, #FF6B35 0%, #FF9068 100%)',
       padding: '24px',
     }}>
-      <div style={{ fontFamily: 'Fredoka One', fontSize: '42px', color: '#fff', marginBottom: '8px' }}>🛒 Pili Ventas</div>
+      <div style={{ fontFamily: 'Fredoka One', fontSize: '42px', color: '#fff', marginBottom: '8px' }}>🛒 Mi Tiendita</div>
       <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '40px', fontSize: '16px' }}>Ingresa tu PIN</p>
       
       <div style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
@@ -349,6 +349,9 @@ function VentaView({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [cobrarModal, setCobrarModal] = useState(false);
   const [stockMap, setStockMap] = useState({});
+  // Denominaciones y efectivo persisten aunque se cierre el modal
+  const [efectivoRecibido, setEfectivoRecibido] = useState(0);
+  const [denominaciones, setDenominaciones] = useState({});
 
   const loadProductos = useCallback(async () => {
     setLoading(true);
@@ -409,13 +412,11 @@ function VentaView({ showToast }) {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-        {productos.map(p => {
+        {productos.filter(p => (stockMap[p.id] || 0) > 0).map(p => {
           const stock = stockMap[p.id] || 0;
           const qty = carrito[p.id] || 0;
-          const agotado = stock <= 0;
           return (
             <Card key={p.id} style={{
-              opacity: agotado ? 0.5 : 1,
               border: qty > 0 ? '2px solid var(--primary)' : '2px solid transparent',
               transition: 'all 0.2s',
               position: 'relative',
@@ -434,21 +435,28 @@ function VentaView({ showToast }) {
               <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: 4, lineHeight: 1.2 }}>{p.nombre}</div>
               {p.categoria && <div style={{ fontSize: '11px', color: 'var(--text-soft)', marginBottom: 4 }}>{p.categoria}</div>}
               <div style={{ fontFamily: 'Fredoka One', fontSize: '20px', color: 'var(--primary)', marginBottom: 8 }}>{fmt(p.precio_venta)}</div>
-              <div style={{ fontSize: '11px', color: stock <= 3 && !agotado ? 'var(--danger)' : 'var(--text-soft)', marginBottom: 8 }}>
-                {agotado ? '❌ Agotado' : `📦 ${stock} pzas`}
+              <div style={{ fontSize: '11px', color: stock <= 3 ? 'var(--danger)' : 'var(--text-soft)', marginBottom: 8 }}>
+                📦 {stock} pzas
               </div>
-              {!agotado && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button onClick={() => setQty(p.id, -1)} disabled={qty === 0}
-                    style={{ background: qty > 0 ? 'var(--danger)' : 'var(--border)', color: qty > 0 ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8, width: 34, height: 34, fontSize: 20, fontWeight: 900, cursor: qty > 0 ? 'pointer' : 'default' }}>−</button>
-                  <span style={{ fontWeight: 900, fontSize: 18, minWidth: 24, textAlign: 'center' }}>{qty}</span>
-                  <button onClick={() => setQty(p.id, 1)} disabled={qty >= stock}
-                    style={{ background: qty < stock ? 'var(--success)' : 'var(--border)', color: qty < stock ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8, width: 34, height: 34, fontSize: 20, fontWeight: 900, cursor: qty < stock ? 'pointer' : 'default' }}>+</button>
-                </div>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => setQty(p.id, -1)} disabled={qty === 0}
+                  style={{ background: qty > 0 ? 'var(--danger)' : 'var(--border)', color: qty > 0 ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8, width: 34, height: 34, fontSize: 20, fontWeight: 900, cursor: qty > 0 ? 'pointer' : 'default' }}>−</button>
+                <span style={{ fontWeight: 900, fontSize: 18, minWidth: 24, textAlign: 'center' }}>{qty}</span>
+                <button onClick={() => setQty(p.id, 1)} disabled={qty >= stock}
+                  style={{ background: qty < stock ? 'var(--success)' : 'var(--border)', color: qty < stock ? '#fff' : 'var(--text-soft)', border: 'none', borderRadius: 8, width: 34, height: 34, fontSize: 20, fontWeight: 900, cursor: qty < stock ? 'pointer' : 'default' }}>+</button>
+              </div>
             </Card>
           );
         })}
+        {productos.filter(p => (stockMap[p.id] || 0) > 0).length === 0 && productos.length > 0 && (
+          <div style={{ gridColumn: '1/-1' }}>
+            <Card style={{ textAlign: 'center', padding: '40px' }}>
+              <div style={{ fontSize: '48px' }}>📭</div>
+              <p style={{ color: 'var(--text-soft)', marginTop: 8, fontWeight: 700 }}>Sin stock disponible</p>
+              <p style={{ color: 'var(--text-soft)', fontSize: 13, marginTop: 4 }}>Ingresa inventario para comenzar a vender</p>
+            </Card>
+          </div>
+        )}
       </div>
 
       {itemsEnCarrito > 0 && (
@@ -476,8 +484,16 @@ function VentaView({ showToast }) {
           total={total}
           carrito={carrito}
           productos={productos}
+          efectivoRecibido={efectivoRecibido}
+          setEfectivoRecibido={setEfectivoRecibido}
+          denominaciones={denominaciones}
+          setDenominaciones={setDenominaciones}
           onClose={() => setCobrarModal(false)}
-          onDone={() => { setCobrarModal(false); setCarrito({}); loadProductos(); showToast('✅ Venta registrada', 'success'); }}
+          onDone={() => {
+            setCobrarModal(false); setCarrito({});
+            setEfectivoRecibido(0); setDenominaciones({});
+            loadProductos(); showToast('✅ Venta registrada', 'success');
+          }}
           showToast={showToast}
         />
       )}
@@ -486,53 +502,66 @@ function VentaView({ showToast }) {
 }
 
 // ─── COBRAR MODAL ──────────────────────────────────────────────
-function CobrarModal({ total, carrito, productos, onClose, onDone, showToast }) {
-  const [metodo, setMetodo] = useState(null); // 'efectivo' | 'transferencia'
-  const [efectivoRecibido, setEfectivoRecibido] = useState(0);
-  const [denominaciones, setDenominaciones] = useState({});
-  const [trackDenom, setTrackDenom] = useState(false);
+function CobrarModal({ total: totalOriginal, carrito, productos, efectivoRecibido, setEfectivoRecibido, denominaciones, setDenominaciones, onClose, onDone, showToast }) {
+  const [metodo, setMetodo] = useState(null);
   const [saving, setSaving] = useState(false);
   const [cobrado, setCobrado] = useState(false);
   const [cambio, setCambio] = useState(0);
+  // Total editable
+  const [totalEditando, setTotalEditando] = useState(false);
+  const [totalInput, setTotalInput] = useState(String(totalOriginal));
+  const totalRef = useRef(null);
+  const total = parseFloat(totalInput) || 0;
+  const totalAjustado = total !== totalOriginal;
+
+  const handleTotalClick = () => {
+    setTotalEditando(true);
+    setTimeout(() => totalRef.current && totalRef.current.select(), 50);
+  };
+  const handleTotalBlur = () => {
+    setTotalEditando(false);
+    const v = parseFloat(totalInput);
+    if (isNaN(v) || v < 0) setTotalInput('0');
+  };
 
   const addDenom = (d) => {
     setEfectivoRecibido(prev => prev + d);
-    if (trackDenom) setDenominaciones(prev => ({ ...prev, [d]: (prev[d] || 0) + 1 }));
+    setDenominaciones(prev => ({ ...prev, [d]: (prev[d] || 0) + 1 }));
+  };
+
+  const limpiarEfectivo = () => {
+    setEfectivoRecibido(0);
+    setDenominaciones({});
   };
 
   const handleCobrar = async () => {
     setSaving(true);
     try {
       const cambioVal = metodo === 'efectivo' ? Math.max(0, efectivoRecibido - total) : 0;
-      // Insertar venta
       const [venta] = await db.post('pos_ventas', {
         total, metodo_pago: metodo, cambio_entregado: cambioVal
       });
-      // Insertar items
       const items = Object.entries(carrito).map(([id, qty]) => {
         const p = productos.find(p => p.id === id);
         return { venta_id: venta.id, producto_id: id, cantidad: qty, precio_unitario_al_momento: p.precio_venta };
       });
       await Promise.all(items.map(i => db.post('pos_venta_items', i)));
 
-      // Movimiento de capital
+      const concepto = `Venta ${metodo}${totalAjustado ? ' (precio ajustado)' : ''} - ${Object.keys(carrito).length} productos`;
       await db.post('pos_capital_movimientos', {
-        tipo: 'venta', monto: total,
-        concepto: `Venta ${metodo} - ${Object.keys(carrito).length} productos`,
+        tipo: 'venta', monto: total, concepto,
         referencia_id: venta.id, referencia_tipo: 'venta'
       });
 
-      // Movimiento capital por cambio entregado
       if (cambioVal > 0) {
         await db.post('pos_capital_movimientos', {
           tipo: 'cambio', monto: -cambioVal,
-          concepto: `Cambio entregado venta`,
+          concepto: 'Cambio entregado venta',
           referencia_id: venta.id, referencia_tipo: 'venta'
         });
       }
 
-      // Denominaciones opcionales
-      if (trackDenom && metodo === 'efectivo') {
+      if (metodo === 'efectivo') {
         const denoms = Object.entries(denominaciones);
         if (denoms.length > 0) {
           await Promise.all(denoms.map(([d, c]) =>
@@ -562,7 +591,8 @@ function CobrarModal({ total, carrito, productos, onClose, onDone, showToast }) 
       }}>
         <div style={{ fontSize: '80px', marginBottom: '16px' }}>✅</div>
         <div style={{ fontFamily: 'Fredoka One', fontSize: '32px', color: '#fff', marginBottom: '8px' }}>¡Cobrado!</div>
-        <div style={{ fontSize: '48px', fontFamily: 'Fredoka One', color: '#fff', marginBottom: '8px' }}>{fmt(total)}</div>
+        <div style={{ fontSize: '48px', fontFamily: 'Fredoka One', color: '#fff', marginBottom: '4px' }}>{fmt(total)}</div>
+        {totalAjustado && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>Precio original: {fmt(totalOriginal)}</div>}
         {cambio > 0 && (
           <Card style={{ marginTop: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
             <div style={{ fontSize: '14px', fontWeight: 700 }}>Cambio a entregar</div>
@@ -593,8 +623,51 @@ function CobrarModal({ total, carrito, productos, onClose, onDone, showToast }) 
           <button onClick={onClose} style={{ background: 'var(--border)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 18 }}>×</button>
         </div>
 
-        <div style={{ fontFamily: 'Fredoka One', fontSize: '36px', textAlign: 'center', marginBottom: '20px', color: 'var(--text)' }}>
-          {fmt(total)}
+        {/* Total editable al tocarlo */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          {totalEditando ? (
+            <input
+              ref={totalRef}
+              type="number"
+              min="0"
+              step="0.01"
+              value={totalInput}
+              onChange={e => setTotalInput(e.target.value)}
+              onBlur={handleTotalBlur}
+              onKeyDown={e => e.key === 'Enter' && handleTotalBlur()}
+              style={{
+                fontFamily: 'Fredoka One', fontSize: 36,
+                textAlign: 'center', width: '100%',
+                border: '2px solid var(--primary)', borderRadius: 12,
+                padding: '8px', background: 'var(--surface2)',
+                color: 'var(--primary)', outline: 'none',
+              }}
+            />
+          ) : (
+            <div onClick={handleTotalClick} style={{
+              fontFamily: 'Fredoka One', fontSize: 36,
+              color: totalAjustado ? 'var(--primary)' : 'var(--text)',
+              cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '6px 16px', borderRadius: 12,
+              border: `2px solid ${totalAjustado ? 'var(--primary)' : 'transparent'}`,
+              background: totalAjustado ? 'rgba(255,107,53,0.08)' : 'transparent',
+              transition: 'all 0.2s',
+            }}
+            title="Toca para ajustar el precio">
+              {fmt(total)}
+              {totalAjustado
+                ? <span style={{ fontSize: 14, color: 'var(--primary)' }}>✏️</span>
+                : <span style={{ fontSize: 13, color: 'var(--text-soft)', opacity: 0.4 }}>✏️</span>
+              }
+            </div>
+          )}
+          {totalAjustado && (
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', marginTop: 4 }}>
+              Precio original: {fmt(totalOriginal)} •
+              <button onClick={() => setTotalInput(String(totalOriginal))} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: 12, marginLeft: 4 }}>Restablecer</button>
+            </div>
+          )}
         </div>
 
         {!metodo && (
@@ -656,7 +729,18 @@ function CobrarModal({ total, carrito, productos, onClose, onDone, showToast }) 
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+            {/* Denominaciones recibidas acumuladas */}
+            {Object.keys(denominaciones).length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {Object.entries(denominaciones).sort((a,b) => b[0]-a[0]).map(([d, c]) => (
+                  <span key={d} style={{ background: 'var(--surface2)', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 800 }}>
+                    {d < 1 ? `${d*100}¢` : `$${d}`} ×{c}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
               {DENOMINACIONES.map(d => (
                 <button key={d} onClick={() => addDenom(d)} style={{
                   padding: '12px 4px', background: 'var(--accent)', border: 'none',
@@ -671,15 +755,11 @@ function CobrarModal({ total, carrito, productos, onClose, onDone, showToast }) 
               ))}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <button onClick={() => { setEfectivoRecibido(0); setDenominaciones({}); }} style={{
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={limpiarEfectivo} style={{
                 background: 'var(--border)', border: 'none', borderRadius: 8, padding: '8px 12px',
                 fontWeight: 700, cursor: 'pointer', fontSize: 13, color: 'var(--text-soft)',
               }}>↺ Limpiar</button>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-soft)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={trackDenom} onChange={e => setTrackDenom(e.target.checked)} />
-                Registrar denominaciones
-              </label>
             </div>
 
             <Btn full size="lg" disabled={efectivoRecibido < total || saving} onClick={handleCobrar}>
@@ -1560,7 +1640,7 @@ function ConfigView({ showToast, onLogout }) {
       <Card style={{ marginBottom: 16 }}>
         <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>ℹ️ Información</div>
         <p style={{ fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.6 }}>
-          <strong>Pili Ventas</strong> v1.0<br/>
+          <strong>Mi Tiendita</strong> v1.0<br/>
           Datos de transferencia configurados en el HTML.<br/>
           Para cambiar CLABE/Banco, edita la sección <code>TRANSFER_INFO</code> en el archivo.
         </p>
