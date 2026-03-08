@@ -694,6 +694,45 @@
     .card-item:hover .card-remove-btn { opacity: 1; }
     .card-item .card-remove-btn:hover { color: var(--red); }
 
+    .card-item .card-edit-btn {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      background: rgba(0,0,0,0.65);
+      border: none;
+      border-radius: 4px;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      line-height: 1;
+      z-index: 3;
+      transition: color 0.15s, background 0.15s;
+    }
+    .card-item .card-edit-btn:hover { color: var(--gold); background: rgba(0,0,0,0.85); }
+    .card-grid.mode-organize .card-drag-handle { left: 30px; }
+
+    .list-card.export-selectable { cursor: pointer; }
+    .list-card.export-selected { border-color: var(--gold); background: rgba(201,168,76,0.07); }
+    .list-card.export-selected::before { opacity: 1; }
+    .export-check {
+      position: absolute;
+      top: 0.7rem; right: 0.7rem;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border-bright);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem;
+      transition: all 0.15s;
+      background: var(--bg3);
+      color: transparent;
+    }
+    .list-card.export-selected .export-check { background: var(--gold); border-color: var(--gold); color: #000; }
+
     /* dragging state */
     .card-item.dragging {
       opacity: 0.4;
@@ -1447,8 +1486,67 @@ function applyDisplayConfig(entries, sortKey, sortDir, groupKey) {
     }));
 }
 
+// ─── Change Printing Modal ───────────────────────────────────────────────────
+function PrintingModal({ entry, onSelect, onClose }) {
+  const [printings, setPrintings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (!entry.cardData) { setLoading(false); return; }
+      const name = entry.cardData.name;
+      const r = await fetch(
+        `https://api.scryfall.com/cards/search?q=${encodeURIComponent('!"' + name + '" include:extras')}&unique=prints&order=released&dir=asc`
+      );
+      if (r.ok) { const d = await r.json(); setPrintings(d.data || []); }
+      setLoading(false);
+    }
+    load();
+  }, [entry.scryfall_id]);
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="modal-title">Change Printing — {entry.cardData?.name}</div>
+      <p style={{fontSize:'0.85rem',color:'var(--text-dim)',marginBottom:'1rem',fontStyle:'italic'}}>
+        Current: {entry.cardData?.set_name} #{entry.cardData?.collector_number}
+      </p>
+      {loading ? (
+        <div style={{textAlign:'center',padding:'2rem'}}><span className="loading-spinner"/></div>
+      ) : (
+        <div className="search-results">
+          {printings.map(card => {
+            const img = cardImageUri(card);
+            const isCurrent = card.id === entry.scryfall_id;
+            return (
+              <div
+                key={card.id}
+                className={`search-result-card ${isCurrent ? 'already-added' : ''}`}
+                onClick={() => !isCurrent && onSelect(card)}
+                title={card.set_name + ' #' + card.collector_number}
+                style={{cursor: isCurrent ? 'default' : 'pointer'}}
+              >
+                {img
+                  ? <img src={img} alt={card.name} loading="lazy" />
+                  : <div style={{padding:'0.5rem',fontSize:'0.65rem',color:'var(--text-dim)',fontFamily:'Cinzel',aspectRatio:'63/88',display:'flex',alignItems:'center',textAlign:'center'}}>{card.name}</div>
+                }
+                <div style={{position:'absolute',bottom:0,left:0,right:0,background:'linear-gradient(transparent,rgba(0,0,0,0.9))',padding:'1rem 0.3rem 0.3rem',fontSize:'0.58rem',fontFamily:'Cinzel',letterSpacing:'0.03em',color:isCurrent?'var(--gold)':'var(--text-dim)',lineHeight:1.2,borderRadius:'0 0 4px 4px',textAlign:'center'}}>
+                  {card.set.toUpperCase()} #{card.collector_number}
+                  {isCurrent && <div style={{color:'var(--gold)'}}>current</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Card Grid Item ───────────────────────────────────────────────────────────
-function CardItem({ entry, mode, onToggle, onRemove, onDragStart, onDragOver, onDrop, onTouchStart, isDragging, isDragOver }) {
+function CardItem({ entry, mode, onToggle, onRemove, onChangePrinting, onDragStart, onDragOver, onDrop, onTouchStart, isDragging, isDragOver }) {
   const img = entry.cardData ? cardImageUri(entry.cardData) : null;
   const isOrganize = mode === 'organize';
 
@@ -1469,7 +1567,14 @@ function CardItem({ entry, mode, onToggle, onRemove, onDragStart, onDragOver, on
         <div className="card-placeholder">{entry.scryfall_id.slice(0,8)}…</div>
       )}
       <div className="card-overlay" />
-      <div className="card-drag-handle" onTouchStart={e => onTouchStart(entry, e)}>⠿</div>
+      <button
+        className="card-edit-btn"
+        onClick={e => { e.stopPropagation(); onChangePrinting(entry); }}
+        title="Change printing"
+      >✎</button>
+      {isOrganize && (
+        <div className="card-drag-handle" onTouchStart={e => onTouchStart(entry, e)}>⠿</div>
+      )}
       <div className="card-name-tooltip">{entry.cardData?.name}</div>
       <button
         className="card-remove-btn"
@@ -1487,6 +1592,7 @@ function ListView({ list, onBack, toast }) {
   const [showSearch, setShowSearch] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [confirm, setConfirm] = useState(null);
+  const [changePrintingEntry, setChangePrintingEntry] = useState(null);
   const [scryfallDragActive, setScryfallDragActive] = useState(false);
   const [mode, setMode] = useState('view'); // 'view' | 'organize'
   const [sortKey, setSortKey] = useState('manual');
@@ -1701,6 +1807,14 @@ function ListView({ list, onBack, toast }) {
     setEntries(es => es.filter(e => e.id !== entry.id));
   }
 
+  async function handleChangePrinting(entry, newCard) {
+    const { error } = await sb.from('list_cards').update({ scryfall_id: newCard.id }).eq('id', entry.id);
+    if (error) { toast('Failed to update printing', 'error'); return; }
+    setEntries(es => es.map(e => e.id === entry.id ? { ...e, scryfall_id: newCard.id, cardData: newCard } : e));
+    setChangePrintingEntry(null);
+    toast('Printing changed to ' + newCard.set_name + ' #' + newCard.collector_number);
+  }
+
   // ── Drag reorder ──
   function handleDragStart(entry) {
     dragItem.current = entry;
@@ -1874,6 +1988,7 @@ function ListView({ list, onBack, toast }) {
                     mode={isManual ? mode : 'view'}
                     onToggle={toggleOwned}
                     onRemove={e => setConfirm(e)}
+                    onChangePrinting={e => setChangePrintingEntry(e)}
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
@@ -1901,6 +2016,13 @@ function ListView({ list, onBack, toast }) {
           onCancel={() => setConfirm(null)}
         />
       )}
+      {changePrintingEntry && (
+        <PrintingModal
+          entry={changePrintingEntry}
+          onSelect={newCard => handleChangePrinting(changePrintingEntry, newCard)}
+          onClose={() => setChangePrintingEntry(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1913,6 +2035,9 @@ function ListsHome({ onSelectList, toast }) {
   const [editTarget, setEditTarget] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [stats, setStats] = useState({});
+  const [exportMode, setExportMode] = useState(false);
+  const [exportSelected, setExportSelected] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
 
   async function loadLists() {
     setLoading(true);
@@ -1930,6 +2055,32 @@ function ListsHome({ onSelectList, toast }) {
   }
 
   useEffect(() => { loadLists(); }, []);
+
+  function toggleExportSelect(id) {
+    setExportSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  async function runExport() {
+    if (exportSelected.size === 0) return;
+    setExporting(true);
+    const lines = [];
+    for (const listId of exportSelected) {
+      const { data: cards } = await sb.from('list_cards').select('*').eq('list_id', listId).eq('owned', false);
+      if (!cards) continue;
+      for (const card of cards) {
+        const cd = await scryfallById(card.scryfall_id);
+        if (!cd) continue;
+        lines.push('1 ' + cd.name + ' (' + cd.set.toUpperCase() + ') ' + cd.collector_number);
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      toast('Copied ' + lines.length + ' missing card' + (lines.length !== 1 ? 's' : '') + ' to clipboard');
+    } catch { toast('Could not access clipboard', 'error'); }
+    setExporting(false);
+    setExportMode(false);
+    setExportSelected(new Set());
+  }
 
   async function createList(fields) {
     const { data, error } = await sb.from('lists').insert([fields]).select().single();
@@ -1960,7 +2111,21 @@ function ListsHome({ onSelectList, toast }) {
       <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:'2rem', flexWrap:'wrap', gap:'1rem'}}>
         <div>
           <div className="page-title">Your Collections</div>
-          <div className="page-subtitle">Track which cards you own across custom lists</div>
+          <div className="page-subtitle">
+            {exportMode ? `Select lists to export — ${exportSelected.size} selected` : 'Track which cards you own across custom lists'}
+          </div>
+        </div>
+        <div style={{display:'flex', gap:'0.6rem', flexWrap:'wrap'}}>
+          {exportMode ? (
+            <>
+              <button className="btn btn-ghost" onClick={() => { setExportMode(false); setExportSelected(new Set()); }}>Cancel</button>
+              <button className="btn btn-gold" onClick={runExport} disabled={exportSelected.size === 0 || exporting}>
+                {exporting ? <><span className="loading-spinner"/> Copying…</> : `Copy Missing (${exportSelected.size} list${exportSelected.size !== 1 ? 's' : ''})`}
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-ghost" onClick={() => setExportMode(true)}>↓ Export Missing</button>
+          )}
         </div>
       </div>
 
@@ -1971,19 +2136,32 @@ function ListsHome({ onSelectList, toast }) {
           {lists.map(list => {
             const s = stats[list.id];
             return (
-              <div key={list.id} className="list-card" onClick={() => onSelectList(list)}>
+              <div
+                key={list.id}
+                className={`list-card ${exportMode ? 'export-selectable' : ''} ${exportMode && exportSelected.has(list.id) ? 'export-selected' : ''}`}
+                style={{position:'relative'}}
+                onClick={() => exportMode ? toggleExportSelect(list.id) : onSelectList(list)}
+              >
+                {exportMode && <div className="export-check">{exportSelected.has(list.id) ? '✓' : ''}</div>}
                 <div className="list-card-name">{list.name}</div>
-                <div className="list-card-desc">{list.description || '\u00a0'}</div>
+                <div className="list-card-desc">{list.description || ' '}</div>
                 <div className="list-card-meta">
                   <span>{s ? `${s.total} card${s.total !== 1 ? 's' : ''}` : '—'}</span>
                   {s && s.total > 0 && (
                     <span className="list-card-progress">{s.owned}/{s.total} owned</span>
                   )}
                 </div>
-                <div className="list-card-actions" onClick={e => e.stopPropagation()}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(list)}>Edit</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setConfirm(list)}>Delete</button>
-                </div>
+                {!exportMode && (
+                  <div className="list-card-actions" onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(list)}>Edit</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirm(list)}>Delete</button>
+                  </div>
+                )}
+                {exportMode && s && s.total > s.owned && (
+                  <div style={{marginTop:'0.6rem',fontSize:'0.78rem',color:'var(--text-muted)',fontStyle:'italic'}}>
+                    {s.total - s.owned} missing
+                  </div>
+                )}
               </div>
             );
           })}
