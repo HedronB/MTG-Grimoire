@@ -280,6 +280,125 @@
 
     .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.72rem; }
 
+    /* ===== SORT/GROUP PANEL ===== */
+    .sg-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.4rem;
+      flex-wrap: wrap;
+    }
+
+    .sg-label {
+      font-family: 'Cinzel', serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .sg-select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.35rem 0.6rem;
+      color: var(--text-dim);
+      font-family: 'Cinzel', serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.15s, color 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 1.4rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a4840'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.5rem center;
+    }
+
+    .sg-select.active {
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+
+    .sg-select:focus { border-color: var(--gold-dim); }
+
+    .sg-dir-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.35rem 0.55rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      line-height: 1;
+    }
+
+    .sg-dir-btn.active {
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+
+    .sg-sep {
+      width: 1px;
+      height: 1.2rem;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ===== GROUP HEADERS ===== */
+    .card-group { margin-bottom: 2rem; }
+
+    .card-group-header {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-bottom: 0.8rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-group-name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+
+    .card-group-pip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      font-size: 0.6rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .card-group-count {
+      font-family: 'Cinzel', serif;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      margin-left: auto;
+    }
+
+    .card-group-owned {
+      font-family: 'Cinzel', serif;
+      font-size: 0.68rem;
+      color: var(--owned);
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 600px) {
+      .sg-bar { gap: 0.4rem; }
+      .sg-select { font-size: 0.68rem; padding: 0.3rem 1.2rem 0.3rem 0.5rem; }
+    }
+
     /* ===== MODE TOGGLE ===== */
     .mode-toggle {
       display: flex;
@@ -1171,6 +1290,163 @@ function ImportModal({ existingIds, onAdd, onClose, toast }) {
   );
 }
 
+// ─── Sort / Group Engine ─────────────────────────────────────────────────────
+
+const SORT_OPTIONS = [
+  { value: 'manual',     label: 'Manual' },
+  { value: 'name',       label: 'Name' },
+  { value: 'color',      label: 'Color' },
+  { value: 'color_identity', label: 'Color Identity' },
+  { value: 'cmc',        label: 'Mana Value' },
+  { value: 'type',       label: 'Type' },
+  { value: 'rarity',     label: 'Rarity' },
+  { value: 'set',        label: 'Set' },
+  { value: 'released',   label: 'Print Date' },
+  { value: 'collector',  label: 'Collector №' },
+  { value: 'owned',      label: 'Owned' },
+];
+
+const GROUP_OPTIONS = [
+  { value: 'none',       label: 'No Grouping' },
+  { value: 'color',      label: 'Color' },
+  { value: 'color_identity', label: 'Color Identity' },
+  { value: 'type',       label: 'Type' },
+  { value: 'cmc',        label: 'Mana Value' },
+  { value: 'rarity',     label: 'Rarity' },
+  { value: 'set',        label: 'Set' },
+  { value: 'released',   label: 'Print Date' },
+  { value: 'collector',  label: 'Collector №' },
+  { value: 'owned',      label: 'Owned / Missing' },
+];
+
+const RARITY_ORDER = { common: 0, uncommon: 1, rare: 2, mythic: 3 };
+const COLOR_ORDER  = { W: 0, U: 1, B: 2, R: 3, G: 4 };
+
+function primaryColor(card) {
+  if (!card) return 'Z';
+  const c = card.colors || [];
+  if (c.length === 0) return 'C'; // colorless
+  if (c.length > 1)  return 'M'; // multicolor
+  return c[0];
+}
+
+function colorIdentityKey(card) {
+  if (!card) return 'C';
+  const ci = (card.color_identity || []).sort((a,b) => (COLOR_ORDER[a]??9) - (COLOR_ORDER[b]??9));
+  if (ci.length === 0) return 'C';
+  return ci.join('');
+}
+
+function colorLabel(key) {
+  const map = { W:'White', U:'Blue', B:'Black', R:'Red', G:'Green', M:'Multicolor', C:'Colorless' };
+  if (map[key]) return map[key];
+  // color identity combo
+  const names = { W:'White',U:'Blue',B:'Black',R:'Red',G:'Green' };
+  return key.split('').map(c => names[c] || c).join(' / ');
+}
+
+function typeKey(card) {
+  if (!card) return 'Unknown';
+  const line = card.type_line || '';
+  for (const t of ['Creature','Instant','Sorcery','Artifact','Enchantment','Planeswalker','Land','Battle']) {
+    if (line.includes(t)) return t;
+  }
+  return 'Other';
+}
+
+function getSortVal(entry, key) {
+  const c = entry.cardData;
+  switch(key) {
+    case 'manual':    return entry.position;
+    case 'name':      return (c?.name || '').toLowerCase();
+    case 'color':     return (COLOR_ORDER[primaryColor(c)] ?? 9) * 10 + (c?.name||'').charCodeAt(0)/1000;
+    case 'color_identity': return colorIdentityKey(c);
+    case 'cmc':       return c?.cmc ?? 0;
+    case 'type':      return typeKey(c);
+    case 'rarity':    return RARITY_ORDER[c?.rarity] ?? 9;
+    case 'set':       return (c?.set_name || '').toLowerCase();
+    case 'released':  return c?.released_at || '';
+    case 'collector': return parseInt(c?.collector_number) || 0;
+    case 'owned':     return entry.owned ? 0 : 1;
+    default:          return 0;
+  }
+}
+
+function getGroupKey(entry, key) {
+  const c = entry.cardData;
+  switch(key) {
+    case 'none':      return '__all__';
+    case 'color':     return primaryColor(c);
+    case 'color_identity': return colorIdentityKey(c);
+    case 'type':      return typeKey(c);
+    case 'cmc':       return String(c?.cmc ?? '?');
+    case 'rarity':    return c?.rarity || 'unknown';
+    case 'set':       return c?.set_name || 'Unknown Set';
+    case 'released':  return (c?.released_at || '').slice(0,7); // YYYY-MM
+    case 'collector': return c?.set_name || 'Unknown Set';
+    case 'owned':     return entry.owned ? 'owned' : 'missing';
+    default:          return '__all__';
+  }
+}
+
+function getGroupLabel(key, groupKey) {
+  switch(key) {
+    case 'color':     return colorLabel(groupKey);
+    case 'color_identity': return colorLabel(groupKey);
+    case 'rarity':    return groupKey.charAt(0).toUpperCase() + groupKey.slice(1);
+    case 'owned':     return groupKey === 'owned' ? 'Owned' : 'Missing';
+    case 'cmc':       return `Mana Value ${groupKey}`;
+    default:          return groupKey;
+  }
+}
+
+function groupSortOrder(key, groupKey) {
+  switch(key) {
+    case 'color':     return COLOR_ORDER[groupKey] ?? 9;
+    case 'color_identity': {
+      const chars = groupKey.split('');
+      return chars.reduce((s,c) => s + (COLOR_ORDER[c]??9), 0) * 10 + chars.length;
+    }
+    case 'rarity':    return RARITY_ORDER[groupKey] ?? 9;
+    case 'owned':     return groupKey === 'owned' ? 0 : 1;
+    case 'cmc':       return parseInt(groupKey) || 0;
+    default:          return groupKey;
+  }
+}
+
+// Returns array of { groupKey, groupLabel, entries[] }
+function applyDisplayConfig(entries, sortKey, sortDir, groupKey) {
+  const sorted = [...entries].sort((a, b) => {
+    const av = getSortVal(a, sortKey);
+    const bv = getSortVal(b, sortKey);
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  if (groupKey === 'none') {
+    return [{ groupKey: '__all__', groupLabel: null, entries: sorted }];
+  }
+
+  const map = new Map();
+  for (const e of sorted) {
+    const gk = getGroupKey(e, groupKey);
+    if (!map.has(gk)) map.set(gk, []);
+    map.get(gk).push(e);
+  }
+
+  return [...map.entries()]
+    .sort((a, b) => {
+      const ao = groupSortOrder(groupKey, a[0]);
+      const bo = groupSortOrder(groupKey, b[0]);
+      return ao < bo ? -1 : ao > bo ? 1 : 0;
+    })
+    .map(([gk, ents]) => ({
+      groupKey: gk,
+      groupLabel: getGroupLabel(groupKey, gk),
+      entries: ents,
+    }));
+}
+
 // ─── Card Grid Item ───────────────────────────────────────────────────────────
 function CardItem({ entry, mode, onToggle, onRemove, onDragStart, onDragOver, onDrop, onTouchStart, isDragging, isDragOver }) {
   const img = entry.cardData ? cardImageUri(entry.cardData) : null;
@@ -1213,6 +1489,10 @@ function ListView({ list, onBack, toast }) {
   const [confirm, setConfirm] = useState(null);
   const [scryfallDragActive, setScryfallDragActive] = useState(false);
   const [mode, setMode] = useState('view'); // 'view' | 'organize'
+  const [sortKey, setSortKey] = useState('manual');
+  const [sortDir, setSortDir] = useState('asc');
+  const [groupKey, setGroupKey] = useState('none');
+  const settingsLoaded = useRef(false);
   const dragItem = useRef(null);
   const dragOver = useRef(null);
   const [dragId, setDragId] = useState(null);
@@ -1235,7 +1515,42 @@ function ListView({ list, onBack, toast }) {
     setLoading(false);
   }
 
-  useEffect(() => { loadCards(); }, [list.id]);
+  useEffect(() => {
+    loadCards();
+    loadSettings();
+  }, [list.id]);
+
+  async function loadSettings() {
+    const { data } = await sb.from('lists').select('settings').eq('id', list.id).single();
+    if (data?.settings) {
+      const s = data.settings;
+      if (s.sortKey)  setSortKey(s.sortKey);
+      if (s.sortDir)  setSortDir(s.sortDir);
+      if (s.groupKey) setGroupKey(s.groupKey);
+    }
+    settingsLoaded.current = true;
+  }
+
+  async function saveSettings(sk, sd, gk) {
+    if (!settingsLoaded.current) return;
+    await sb.from('lists').update({ settings: { sortKey: sk, sortDir: sd, groupKey: gk } }).eq('id', list.id);
+  }
+
+  function updateSort(val) {
+    setSortKey(val);
+    saveSettings(val, sortDir, groupKey);
+    if (val !== 'manual') setMode('view');
+  }
+
+  function updateSortDir(val) {
+    setSortDir(val);
+    saveSettings(sortKey, val, groupKey);
+  }
+
+  function updateGroup(val) {
+    setGroupKey(val);
+    saveSettings(sortKey, sortDir, val);
+  }
 
   // Global drag events for Scryfall drag-and-drop
   useEffect(() => {
@@ -1466,6 +1781,8 @@ function ListView({ list, onBack, toast }) {
 
   const owned = entries.filter(e => e.owned).length;
   const existingIds = entries.map(e => e.scryfall_id);
+  const displayGroups = applyDisplayConfig(entries, sortKey, sortDir, groupKey);
+  const isManual = sortKey === 'manual';
 
   return (
     <div>
@@ -1492,7 +1809,11 @@ function ListView({ list, onBack, toast }) {
             <button className={`mode-toggle-btn ${mode === 'view' ? 'active' : ''}`} onClick={() => setMode('view')} title="View mode — tap cards to toggle owned">
               ◈ View
             </button>
-            <button className={`mode-toggle-btn ${mode === 'organize' ? 'active' : ''}`} onClick={() => setMode('organize')} title="Organize mode — drag cards to reorder">
+            <button className={`mode-toggle-btn ${isManual && mode === 'organize' ? 'active' : ''}`}
+              onClick={() => { if (isManual) setMode('organize'); }}
+              title={isManual ? 'Organize mode — drag cards to reorder' : 'Switch to Manual sort to reorder'}
+              style={{opacity: isManual ? 1 : 0.4, cursor: isManual ? 'pointer' : 'not-allowed'}}
+            >
               ⠿ Order
             </button>
           </div>
@@ -1500,6 +1821,28 @@ function ListView({ list, onBack, toast }) {
           <button className="btn btn-ghost" onClick={() => setShowImport(true)}>↑ Import</button>
         </div>
       </div>
+
+      {/* Sort / Group bar */}
+      {!loading && entries.length > 0 && (
+        <div className="sg-bar">
+          <span className="sg-label">SORT</span>
+          <select className={`sg-select ${sortKey !== 'manual' ? 'active' : ''}`} value={sortKey} onChange={e => updateSort(e.target.value)}>
+            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <button className={`sg-dir-btn ${sortKey !== 'manual' ? 'active' : ''}`}
+            onClick={() => updateSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
+            title="Toggle sort direction"
+            disabled={sortKey === 'manual'}
+          >
+            {sortDir === 'asc' ? '↑' : '↓'}
+          </button>
+          <div className="sg-sep" />
+          <span className="sg-label">GROUP</span>
+          <select className={`sg-select ${groupKey !== 'none' ? 'active' : ''}`} value={groupKey} onChange={e => updateGroup(e.target.value)}>
+            {GROUP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      )}
 
       {loading ? (
         <div className="empty-state"><div className="loading-spinner" /></div>
@@ -1509,25 +1852,38 @@ function ListView({ list, onBack, toast }) {
           <p>No cards yet. Add some via search or import,<br/>or drag a card image from Scryfall.</p>
         </div>
       ) : (
-        <div
-          className={`card-grid mode-${mode}`}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {entries.map(entry => (
-            <CardItem
-              key={entry.id}
-              entry={entry}
-              mode={mode}
-              onToggle={toggleOwned}
-              onRemove={e => setConfirm(e)}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onTouchStart={handleTouchStart}
-              isDragging={dragId === entry.id}
-              isDragOver={dragOverId === entry.id}
-            />
+        <div>
+          {displayGroups.map(({ groupKey: gk, groupLabel, entries: gEntries }) => (
+            <div key={gk} className={groupKey !== 'none' ? 'card-group' : ''}>
+              {groupKey !== 'none' && groupLabel && (
+                <div className="card-group-header">
+                  <span className="card-group-name">{groupLabel}</span>
+                  <span className="card-group-owned">{gEntries.filter(e=>e.owned).length} owned</span>
+                  <span className="card-group-count">{gEntries.length} cards</span>
+                </div>
+              )}
+              <div
+                className={`card-grid mode-${mode}`}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                {gEntries.map(entry => (
+                  <CardItem
+                    key={entry.id}
+                    entry={entry}
+                    mode={isManual ? mode : 'view'}
+                    onToggle={toggleOwned}
+                    onRemove={e => setConfirm(e)}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    onTouchStart={handleTouchStart}
+                    isDragging={dragId === entry.id}
+                    isDragOver={dragOverId === entry.id}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
