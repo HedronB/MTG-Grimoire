@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Moodboard — Mood Swings Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1520;
+    --bg2: #221b29;
+    --bg3: #2b2233;
+    --border: #3a2f42;
+    --border-bright: #58485f;
+    --text: #f1e9e2;
+    --text-dim: #a698a8;
+    --text-muted: #6b5f70;
+    --accent: #d68f6b;
+    --accent-light: #e8b092;
+    --accent-dim: #7a5240;
+    --owned: #7fae7a;
+    --missing: #4a3f52;
+    --danger: #c96b6b;
+
+    --c-white: #d9c9a3;
+    --c-blue: #7fa8c9;
+    --c-black: #9b86a8;
+    --c-red: #c96b56;
+    --c-green: #7fae7a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+  .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ===== HEADER / SIGNATURE MOOD RING ===== */
+  header {
+    padding: 1.3rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(26,21,32,0.85);
+    backdrop-filter: blur(12px);
+  }
+
+  .mood-ring {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(from 0deg, var(--c-white), var(--c-blue), var(--c-black), var(--c-red), var(--c-green), var(--c-white));
+    animation: ringspin 8s linear infinite;
+    box-shadow: 0 0 14px rgba(214,143,107,0.35);
+  }
+  .mood-ring::after {
+    content:'';
+    position:absolute;
+  }
+  @keyframes ringspin { to { transform: rotate(360deg); } }
+
+  .header-logo-wrap { display:flex; align-items:center; gap:0.7rem; cursor:pointer; }
+
+  .header-logo {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+  .header-logo span {
+    display:block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .header-sep { flex: 1; }
+
+  nav.tabs { display: flex; gap: 0.3rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .tab-btn {
+    padding: 0.45rem 0.9rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--bg3); color: var(--accent-light); }
+  .tab-btn:hover:not(.active) { color: var(--text-dim); }
+
+  main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+  .page-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.7rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.3rem;
+  }
+  .page-subtitle { color: var(--text-dim); font-style: italic; margin-bottom: 1.6rem; font-size: 0.98rem; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 1rem; border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    letter-spacing: 0.05em; cursor: pointer; transition: all 0.15s; border: 1px solid;
+  }
+  .btn-accent { background: linear-gradient(135deg, #3d2a1e, #2c1f16); border-color: var(--accent-dim); color: var(--accent-light); }
+  .btn-accent:hover { border-color: var(--accent); background: linear-gradient(135deg, #4a3324, #37271b); }
+  .btn-ghost { background: transparent; border-color: var(--border-bright); color: var(--text-dim); }
+  .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+  .btn-danger { background: transparent; border-color: #5a2c2c; color: #c9908f; }
+  .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+  .btn-sm { padding: 0.32rem 0.65rem; font-size: 0.65rem; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ===== SORT/GROUP BAR ===== */
+  .sg-bar { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.3rem; flex-wrap: wrap; }
+  .sg-label { font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.12em; color: var(--text-muted); text-transform:uppercase; }
+  .sg-select {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.35rem 1.5rem 0.35rem 0.6rem; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+    cursor: pointer; outline: none; appearance:none; -webkit-appearance:none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b5f70'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position: right 0.5rem center;
+  }
+  .sg-select.active { border-color: var(--accent-dim); color: var(--accent-light); }
+  .sg-dir-btn { background: var(--bg3); border:1px solid var(--border); border-radius:6px; padding:0.35rem 0.55rem; color:var(--text-muted); cursor:pointer; font-size:0.75rem; }
+  .sg-dir-btn.active { border-color: var(--accent-dim); color: var(--accent-light); }
+  .sg-sep { width:1px; height:1.1rem; background: var(--border); }
+  .search-box {
+    background: var(--bg3); border:1px solid var(--border); border-radius:6px;
+    padding: 0.4rem 0.7rem; color: var(--text); font-family:'Source Serif 4',serif;
+    font-size: 0.85rem; outline:none; min-width: 200px;
+  }
+  .search-box:focus { border-color: var(--accent-dim); }
+
+  /* ===== PROGRESS ===== */
+  .progress-strip { display:flex; align-items:center; gap:0.9rem; margin-bottom: 1.4rem; flex-wrap:wrap; }
+  .progress-track { flex:1; min-width:180px; height:6px; background: var(--bg3); border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; background: linear-gradient(90deg, var(--c-blue), var(--owned)); border-radius:3px; transition: width 0.3s; }
+  .progress-text { font-family:'JetBrains Mono',monospace; font-size:0.72rem; color: var(--text-dim); white-space:nowrap; }
+
+  /* ===== CARD GRID ===== */
+  .card-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.9rem; }
+  @media (max-width:600px) { .card-grid { grid-template-columns: repeat(auto-fill, minmax(105px,1fr)); gap:0.6rem; } }
+
+  .card-group { margin-bottom: 2rem; }
+  .card-group-header { display:flex; align-items:center; gap:0.7rem; margin-bottom:0.7rem; padding-bottom:0.35rem; border-bottom:1px solid var(--border); }
+  .card-group-name { font-family:'JetBrains Mono',monospace; font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; color: var(--accent-light); }
+  .card-group-count { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color: var(--text-muted); margin-left:auto; }
+
+  .mood-card {
+    position: relative;
+    aspect-ratio: 5/7;
+    border-radius: 10px;
+    cursor: pointer;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: transform 0.15s, box-shadow 0.15s, filter 0.3s;
+    display: flex; flex-direction: column;
+    padding: 0.55rem;
+  }
+  .mood-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,0.5); z-index:2; }
+
+  .mood-card.owned { filter: saturate(1); }
+  .mood-card.missing { filter: grayscale(0.85) brightness(0.55); }
+  .mood-card.missing:hover { filter: grayscale(0.6) brightness(0.7); }
+
+  .mood-card[data-color="White"] { background: linear-gradient(160deg, #4a4232, #2b2620); }
+  .mood-card[data-color="Blue"]  { background: linear-gradient(160deg, #2c3c4a, #1f2a33); }
+  .mood-card[data-color="Black"] { background: linear-gradient(160deg, #362e40, #241f2b); }
+  .mood-card[data-color="Red"]   { background: linear-gradient(160deg, #4a2e26, #2e1e19); }
+  .mood-card[data-color="Green"] { background: linear-gradient(160deg, #2f3f2c, #1f2a1d); }
+
+  .mood-card-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .mood-card-num { font-family:'JetBrains Mono',monospace; font-size:0.55rem; color: rgba(255,255,255,0.55); }
+  .mood-card-value { font-family:'JetBrains Mono',monospace; font-size:0.62rem; font-weight:600; color: #fff; background: rgba(0,0,0,0.35); border-radius:4px; padding:1px 5px; }
+
+  .mood-card-rarity {
+    position:absolute; top:0.5rem; left:50%; transform:translateX(-50%);
+    width:8px; height:8px; border-radius:50%;
+  }
+  .mood-card-rarity.common { background: rgba(255,255,255,0.25); }
+  .mood-card-rarity.uncommon { background: #c5cdd6; box-shadow:0 0 4px rgba(197,205,214,0.7); }
+  .mood-card-rarity.rare { background: #e0b458; box-shadow:0 0 5px rgba(224,180,88,0.8); }
+  .mood-card-rarity.mythic { background: linear-gradient(135deg,#e0684a,#e0b458); box-shadow:0 0 7px rgba(224,104,74,0.9); }
+
+  .mood-card-name {
+    margin-top: auto;
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 0.82rem;
+    line-height: 1.15;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+  .mood-card-color-label {
+    font-family:'JetBrains Mono',monospace; font-size: 0.52rem; letter-spacing:0.08em;
+    text-transform:uppercase; color: rgba(255,255,255,0.5); margin-top:2px;
+  }
+
+  .mood-card.owned .owned-dot {
+    position:absolute; bottom:0.5rem; right:0.5rem;
+    width:7px; height:7px; border-radius:50%; background: var(--owned);
+    box-shadow: 0 0 6px rgba(127,174,122,0.8);
+  }
+
+  .mood-card.pick-selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .mood-card.pick-mode { cursor: pointer; }
+
+  /* checkbox-style selection tick for pickers */
+  .pick-check {
+    position:absolute; top:0.4rem; right:0.4rem;
+    width:18px; height:18px; border-radius:50%;
+    background: rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.6rem; color: transparent;
+  }
+  .mood-card.pick-selected .pick-check { background: var(--accent); border-color: var(--accent); color:#1a1520; }
+
+  /* ===== DECKS LIST ===== */
+  .decks-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 1.1rem; }
+  .deck-card {
+    background: var(--bg2); border:1px solid var(--border); border-radius:10px;
+    padding: 1.3rem; cursor:pointer; transition: border-color 0.2s, transform 0.2s;
+    position:relative; overflow:hidden;
+  }
+  .deck-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background: linear-gradient(90deg, var(--c-white), var(--c-blue), var(--c-black), var(--c-red), var(--c-green));
+    opacity:0; transition:opacity 0.2s;
+  }
+  .deck-card:hover { border-color: var(--accent-dim); transform: translateY(-2px); }
+  .deck-card:hover::before { opacity:0.8; }
+  .deck-card-name { font-family:'Fraunces',serif; font-weight:600; font-size:1.02rem; margin-bottom:0.3rem; }
+  .deck-card-date { font-family:'JetBrains Mono',monospace; font-size:0.65rem; color: var(--text-muted); margin-bottom:0.8rem; }
+  .deck-card-desc { font-size:0.85rem; color: var(--text-dim); font-style:italic; margin-bottom: 0.9rem; min-height:1.2em; }
+  .deck-card-meta { display:flex; justify-content:space-between; align-items:center; font-family:'JetBrains Mono',monospace; font-size:0.68rem; color: var(--text-muted); }
+  .deck-card-actions { display:flex; gap:0.5rem; margin-top:0.9rem; padding-top:0.9rem; border-top:1px solid var(--border); }
+
+  .new-deck-card {
+    border: 1px dashed var(--border-bright); background: transparent;
+    display:flex; align-items:center; justify-content:center; gap:0.6rem;
+    color: var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:0.75rem;
+    min-height: 130px; transition: all 0.2s;
+  }
+  .new-deck-card:hover { border-color: var(--accent); color: var(--accent-light); }
+  .new-deck-card .plus { font-size:1.4rem; font-family:monospace; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed; inset:0; background: rgba(0,0,0,0.75); z-index:500;
+    display:flex; align-items:center; justify-content:center; padding:1rem;
+    backdrop-filter: blur(4px); animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+  @keyframes slideUp { from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:translateY(0);} }
+  .modal {
+    background: var(--bg2); border:1px solid var(--border-bright); border-radius:12px;
+    padding: 1.8rem; width:100%; max-width: 480px; max-height:88vh; overflow-y:auto;
+    animation: slideUp 0.2s ease;
+  }
+  .modal-wide { max-width: 780px; }
+  .modal-title { font-family:'Fraunces',serif; font-size:1.1rem; font-weight:600; margin-bottom:1.3rem; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:0.6rem; margin-top:1.4rem; }
+
+  .field { margin-bottom: 1.1rem; }
+  .field label { display:block; font-family:'JetBrains Mono',monospace; font-size:0.65rem; letter-spacing:0.08em; text-transform:uppercase; color: var(--text-dim); margin-bottom:0.4rem; }
+  .field input, .field textarea {
+    width:100%; background: var(--bg3); border:1px solid var(--border); border-radius:6px;
+    padding: 0.55rem 0.75rem; color: var(--text); font-family:'Source Serif 4',serif; font-size:0.95rem;
+    outline:none; transition: border-color 0.15s;
+  }
+  .field input:focus, .field textarea:focus { border-color: var(--accent-dim); }
+  .field textarea { resize:vertical; min-height: 90px; font-family:'JetBrains Mono',monospace; font-size:0.82rem; }
+
+  .import-tabs { display:flex; gap:0; margin-bottom:1.1rem; border-bottom:1px solid var(--border); }
+  .import-tab {
+    padding: 0.5rem 1rem; font-family:'JetBrains Mono',monospace; font-size:0.68rem; letter-spacing:0.08em;
+    text-transform:uppercase; cursor:pointer; color: var(--text-dim); border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .import-tab.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
+  .pick-toolbar { display:flex; align-items:center; gap:0.7rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .pick-count { font-family:'JetBrains Mono',monospace; font-size:0.72rem; color: var(--accent-light); margin-left:auto; }
+
+  .paste-results { margin-top:1rem; font-size:0.85rem; max-height:220px; overflow-y:auto; }
+  .paste-row { display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0; border-bottom:1px solid var(--border); }
+  .paste-row .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .dot-ok { background: var(--owned); }
+  .dot-err { background: var(--danger); }
+  .dot-skip { background: var(--text-muted); }
+
+  .card-info-swatch {
+    width:100%; aspect-ratio: 5/7; max-width:160px; border-radius:10px; margin: 0 auto 1rem;
+    display:flex; flex-direction:column; padding:0.7rem; position:relative;
+  }
+  .card-info-decks { font-size:0.85rem; color: var(--text-dim); margin: 0.8rem 0; }
+  .card-info-decks ul { margin-left:1.1rem; margin-top:0.3rem; }
+
+  .empty-state { text-align:center; padding:3.5rem 2rem; color: var(--text-muted); font-style:italic; }
+  .empty-state .icon { font-size:2.2rem; margin-bottom:0.8rem; }
+
+  .loading-spinner { display:inline-block; width:15px; height:15px; border:2px solid var(--border-bright); border-top-color: var(--accent); border-radius:50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast-container { position:fixed; bottom:1.4rem; right:1.4rem; z-index:9000; display:flex; flex-direction:column; gap:0.5rem; }
+  .toast { background: var(--bg2); border:1px solid var(--border-bright); border-radius:8px; padding:0.7rem 1rem; font-size:0.85rem; max-width:280px; animation: slideUp 0.2s ease; }
+  .toast.success { border-color: var(--owned); }
+  .toast.error { border-color: var(--danger); }
+
+  .confirm-text { color: var(--text-dim); line-height:1.5; margin-bottom:0.5rem; }
+
+  .badge-note { font-size:0.72rem; color: var(--text-muted); font-style:italic; margin-bottom:1rem; line-height:1.4; }
+
+  @media (max-width:600px) {
+    header { padding: 1rem; }
+    main { padding: 1rem; }
+    .header-logo { font-size: 1.05rem; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+// ─── Supabase (fill in your own project) ──────────────────────────────────
+const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BkMOyjHirWBxgR-KzwdqtQ_bH8MzuI1';
+const APP_SECRET = '5223jace';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: { headers: { 'x-app-secret': APP_SECRET } }
+});
+
+// ─── Static card database ──────────────────────────────────────────────────
+// n = unofficial checklist number (alphabetical placeholder — edit via the
+// card info modal once you can read the real number off your physical cards).
+// Compiled from Wizards' official "Mood Swings Card Notes" article since the
+// Moodfall site (moodswings.scryfall.com) blocks automated requests.
+// Rarity totals cross-checked against the official 48/40/30/15 split.
+const RAW_CARDS = [
+["Altruism","White","rare","[3]/[6][1]"],["Ambition","Black","common","[2]"],
+["Ambivalence","Blue","common","[6]/[3]"],["Anger","Red","uncommon","[0]"],
+["Angst","Black","uncommon","[3]"],["Animosity","Red","uncommon","[3]/[5]"],
+["Anxiety","Blue","common","[2]"],["Apathy","Black","common","[4]"],
+["Arrogance","Red","uncommon","[2]"],["Avoidance","Blue","rare","[3]"],
+["Awe","Green","rare","[4]"],["Bashfulness","Blue","common","[6]"],
+["Benevolence","White","uncommon","[2]"],["Betrayal","Black","uncommon","[6]"],
+["Bitterness","Black","uncommon","[0]"],["Bliss","Green","mythic","[2]"],
+["Boredom","Red","common","[4]"],["Bravado","Red","common","[3]"],
+["Celebration","Green","common","[3]/[6][1]"],["Chaos","Red","mythic","[6]"],
+["Charity","White","common","[1]"],["Cheer","Green","common","[3]/[5]"],
+["Chivalry","White","common","[3]/[5]"],["Complacency","White","common","[4]"],
+["Compulsion","Red","common","[3]"],["Condescension","Black","common","[3]/[6]"],
+["Confusion","Blue","uncommon","[4]"],["Contempt","Black","uncommon","[1]"],
+["Conviction","White","uncommon","[2]"],["Corruption","Black","rare","[2]"],
+["Courage","White","common","[1]"],["Creativity","Blue","rare","[0]"],
+["Cruelty","Black","uncommon","[3]"],["Curiosity","Blue","common","[3]"],
+["Cynicism","Black","uncommon","[3]/[6]"],["Delight","Green","common","[3]/[5]"],
+["Denial","Blue","rare","[1]"],["Determination","Green","common","[3]/[6]"],
+["Dignity","White","common","[3]/[5]"],["Discipline","White","common","[6]/[3]"],
+["Disgust","Black","common","[6]/[3]"],["Disillusionment","White","rare","[2]"],
+["Disorientation","Blue","rare","[0]"],["Disregard","Green","common","[6]/[3]"],
+["Doubt","Blue","uncommon","[2]"],["Duplicity","Blue","mythic","[0]"],
+["Eagerness","Green","uncommon","[2]"],["Embarrassment","Red","common","[3]/[5]"],
+["Encouragement","White","uncommon","[3]"],["Enjoyment","Green","common","[3]/[6]"],
+["Enthusiasm","Green","uncommon","[0]"],["Envy","Black","rare","[0]"],
+["Euphoria","Green","rare","[0]"],["Excitement","Red","common","[3]/[6]"],
+["Exhilaration","Red","mythic","[0]"],["Faith","White","uncommon","[3]"],
+["Fascination","Green","uncommon","[3]/[6][1]"],["Fear","Blue","common","[0]"],
+["Fickleness","Blue","uncommon","[0]"],["Fondness","Green","uncommon","[0]/[6][1]"],
+["Friendliness","White","uncommon","[2]"],["Frustration","Red","common","[6]/[3]"],
+["Fury","Red","uncommon","[4]"],["Generosity","Green","common","[6]"],
+["Glee","Red","common","[0]/[6]"],["Gluttony","Red","uncommon","[2]"],
+["Grace","Green","rare","[0]"],["Grief","Black","rare","[0]"],
+["Guile","Blue","mythic","[0]"],["Guilt","White","uncommon","[2]"],
+["Happiness","Green","uncommon","[2]/[6][2]"],["Harmony","Green","uncommon","[2]"],
+["Hate","Black","common","[0]"],["Hesitation","Blue","uncommon","[2]"],
+["Honor","White","rare","[3]"],["Hope","Green","rare","[0]"],
+["Hostility","Red","uncommon","[3]"],["Idealism","White","mythic","[0]"],
+["Imagination","Blue","uncommon","[3]"],["Indecisiveness","Blue","uncommon","[3]"],
+["Indifference","Blue","common","[4]"],["Infatuation","Red","rare","[3]/[6][3]"],
+["Insecurity","Blue","uncommon","[2]"],["Instability","Red","rare","[2]"],
+["Intimidation","Black","rare","[1]"],["Joy","Green","common","[3]"],
+["Kindness","White","uncommon","[2]"],["Laziness","Green","common","[4]"],
+["Love","Green","mythic","[4]/[6][6]"],["Loyalty","White","common","[3]/[6]"],
+["Malice","Black","mythic","[0]"],["Meekness","White","rare","[1]"],
+["Melancholy","Black","rare","[3]"],["Misery","Black","uncommon","[2]/[6][2]"],
+["Neurosis","Blue","common","[5]"],["Nostalgia","Green","common","[0]"],
+["Obsession","Blue","common","[3]/[6]"],["Pacifism","White","common","[1]"],
+["Panic","Blue","common","[1]"],["Paranoia","Black","uncommon","[2]"],
+["Passion","Red","rare","[0]"],["Patience","White","common","[5]/[1]"],
+["Pity","Black","common","[3]/[6]"],["Pride","White","rare","[1]"],
+["Rage","Red","uncommon","[2]"],["Rationalization","Blue","rare","[3]"],
+["Rebellion","Red","uncommon","[2]"],["Recklessness","Red","rare","[0]"],
+["Regret","Blue","rare","[4]"],["Rejection","Black","rare","[0]"],
+["Repentance","White","uncommon","[2]"],["Sadness","Black","mythic","[0]"],
+["Scorn","White","mythic","[2]"],["Self-Loathing","Black","common","[6]"],
+["Serenity","Green","uncommon","[3]/[6]"],["Shame","White","rare","[3]"],
+["Shock","Red","common","[2]"],["Sloth","Green","rare","[3]"],
+["Sneakiness","Blue","mythic","[5]"],["Spite","Black","common","[1]"],
+["Stubbornness","Red","rare","[3]"],["Superiority","Black","common","[3]/[6][1]"],
+["Suspicion","Black","common","[3]"],["Thrill","Red","mythic","[1]"],
+["Tranquility","Green","uncommon","[3]/[6]"],["Triumph","Red","common","[3]/[5]"],
+["Validation","White","mythic","[1]"],["Vanity","Black","mythic","[0]"],
+["Vulnerability","Green","rare","[1]/[6][1]"],["Wonder","Green","mythic","[0]"],
+["Worry","Blue","uncommon","[3]"],["Wrath","Red","rare","[0]"],
+["Zeal","Red","common","[3]"],
+];
+
+const COLOR_META = {
+  White: { label: 'Blanco', order: 0 }, Blue: { label: 'Azul', order: 1 },
+  Black: { label: 'Negro', order: 2 }, Red: { label: 'Rojo', order: 3 },
+  Green: { label: 'Verde', order: 4 },
+};
+const RARITY_META = {
+  common: { label: 'Común', order: 0 }, uncommon: { label: 'Infrecuente', order: 1 },
+  rare: { label: 'Rara', order: 2 }, mythic: { label: 'Mítica', order: 3 },
+};
+
+// Official numbering: grouped by color (White, Blue, Black, Red, Green),
+// alphabetical within each color group. E.g. Altruism=1, Ambivalence=27
+// (first Blue card, right after White's 26 cards), Wonder=133 (last Green
+// card alphabetically).
+const CARDS = RAW_CARDS
+  .map(([name, color, rarity, value]) => ({ name, color, rarity, value, special: false }))
+  .sort((a, b) => (COLOR_META[a.color].order - COLOR_META[b.color].order) || a.name.localeCompare(b.name))
+  .map((c, i) => ({ ...c, n: i + 1 }));
+
+// The Love headliner: a signed foil variant of Love. Tracked separately so
+// it doesn't skew the 133-card completion percentage.
+CARDS.push({ n: 134, name: "Love (Headliner)", color: "Green", rarity: "mythic", value: "[4]/[6][6]", special: true });
+
+const CARD_BY_N = Object.fromEntries(CARDS.map(c => [c.n, c]));
+const BASE_CARDS = CARDS.filter(c => !c.special);
+const SPECIAL_CARDS = CARDS.filter(c => c.special);
+
+function formatValue(raw) {
+  return raw.split('/').map(part => [...part.matchAll(/\[(\d+)\]/g)].map(m => m[1]).join('+')).join(' / ');
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts(t => [...t, { id, msg, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+  }, []);
+  return { toasts, add };
+}
+function ToastContainer({ toasts }) {
+  return <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}</div>;
+}
+
+// ─── Modal ───────────────────────────────────────────────────────────────
+function Modal({ onClose, children, wide }) {
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={`modal ${wide ? 'modal-wide' : ''}`}>{children}</div>
+    </div>
+  );
+}
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <Modal onClose={onCancel}>
+      <div className="modal-title">Confirmar</div>
+      <p className="confirm-text">{message}</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
+        <button className="btn btn-danger" onClick={onConfirm}>Eliminar</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Mood card visual ──────────────────────────────────────────────────────
+function MoodCard({ card, owned, overrideNum, onClick, pickMode, selected }) {
+  return (
+    <div
+      className={`mood-card ${owned ? 'owned' : 'missing'} ${pickMode ? 'pick-mode' : ''} ${selected ? 'pick-selected' : ''}`}
+      data-color={card.color}
+      onClick={() => onClick(card)}
+      title={card.name}
+    >
+      <div className={`mood-card-rarity ${card.rarity}`} />
+      <div className="mood-card-top">
+        <span className="mood-card-num">{overrideNum || card.n}</span>
+        <span className="mood-card-value">{formatValue(card.value)}</span>
+      </div>
+      <div>
+        <div className="mood-card-name">{card.name}</div>
+        <div className="mood-card-color-label">{COLOR_META[card.color].label} · {RARITY_META[card.rarity].label}</div>
+      </div>
+      {owned && !pickMode && <div className="owned-dot" />}
+      {pickMode && <div className="pick-check">✓</div>}
+    </div>
+  );
+}
+
+// ─── Sort / Group ──────────────────────────────────────────────────────────
+const SORT_OPTIONS = [
+  { value: 'number', label: 'Número' }, { value: 'name', label: 'Nombre' },
+  { value: 'color', label: 'Color' }, { value: 'rarity', label: 'Rareza' },
+  { value: 'owned', label: 'Obtenida' },
+];
+const GROUP_OPTIONS = [
+  { value: 'none', label: 'Sin agrupar' }, { value: 'color', label: 'Color' },
+  { value: 'rarity', label: 'Rareza' }, { value: 'owned', label: 'Obtenida / Faltante' },
+];
+
+function getSortVal(card, ownedSet, key) {
+  switch (key) {
+    case 'number': return card.n;
+    case 'name': return card.name.toLowerCase();
+    case 'color': return COLOR_META[card.color].order;
+    case 'rarity': return RARITY_META[card.rarity].order;
+    case 'owned': return ownedSet.has(card.n) ? 0 : 1;
+    default: return 0;
+  }
+}
+function getGroupKey(card, ownedSet, key) {
+  switch (key) {
+    case 'none': return '__all__';
+    case 'color': return card.color;
+    case 'rarity': return card.rarity;
+    case 'owned': return ownedSet.has(card.n) ? 'owned' : 'missing';
+    default: return '__all__';
+  }
+}
+function getGroupLabel(key, gk) {
+  switch (key) {
+    case 'color': return COLOR_META[gk].label;
+    case 'rarity': return RARITY_META[gk].label;
+    case 'owned': return gk === 'owned' ? 'Obtenidas' : 'Faltantes';
+    default: return gk;
+  }
+}
+function groupOrder(key, gk) {
+  switch (key) {
+    case 'color': return COLOR_META[gk].order;
+    case 'rarity': return RARITY_META[gk].order;
+    case 'owned': return gk === 'owned' ? 0 : 1;
+    default: return gk;
+  }
+}
+function applyDisplay(cards, ownedSet, sortKey, sortDir, groupKey, query) {
+  let list = cards;
+  if (query.trim()) {
+    const q = query.trim().toLowerCase();
+    list = list.filter(c => c.name.toLowerCase().includes(q) || String(c.n) === q);
+  }
+  const sorted = [...list].sort((a, b) => {
+    const av = getSortVal(a, ownedSet, sortKey), bv = getSortVal(b, ownedSet, sortKey);
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  if (groupKey === 'none') return [{ groupKey: '__all__', groupLabel: null, cards: sorted }];
+  const map = new Map();
+  for (const c of sorted) {
+    const gk = getGroupKey(c, ownedSet, groupKey);
+    if (!map.has(gk)) map.set(gk, []);
+    map.get(gk).push(c);
+  }
+  return [...map.entries()]
+    .sort((a, b) => { const ao = groupOrder(groupKey, a[0]), bo = groupOrder(groupKey, b[0]); return ao < bo ? -1 : ao > bo ? 1 : 0; })
+    .map(([gk, cs]) => ({ groupKey: gk, groupLabel: getGroupLabel(groupKey, gk), cards: cs }));
+}
+
+// ─── Card Picker (grid + paste) — used inside Deck Detail ─────────────────
+function CardPickerModal({ alreadyIn, onAdd, onClose, toast }) {
+  const [tab, setTab] = useState('grid');
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState(new Set());
+  const [pasteText, setPasteText] = useState('');
+  const [pasteResults, setPasteResults] = useState(null);
+
+  function toggle(card) {
+    if (alreadyIn.has(card.n)) return;
+    setSelected(s => { const n = new Set(s); n.has(card.n) ? n.delete(card.n) : n.add(card.n); return n; });
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return CARDS;
+    return CARDS.filter(c => c.name.toLowerCase().includes(q) || String(c.n) === q);
+  }, [query]);
+
+  function parsePaste() {
+    const lines = pasteText.split('\n').map(l => l.trim()).filter(Boolean);
+    const rows = lines.map(line => {
+      const clean = line.replace(/^\d+x?\s+/i, '').trim();
+      // exact number match first, then exact name, then fuzzy name
+      let card = /^\d+$/.test(clean) ? CARD_BY_N[parseInt(clean)] : null;
+      if (!card) card = CARDS.find(c => c.name.toLowerCase() === clean.toLowerCase());
+      if (!card) card = CARDS.find(c => c.name.toLowerCase().includes(clean.toLowerCase()));
+      if (!card) return { input: line, card: null, status: 'err' };
+      if (alreadyIn.has(card.n) || selected.has(card.n)) return { input: line, card, status: 'skip' };
+      return { input: line, card, status: 'ok' };
+    });
+    setPasteResults(rows);
+    const newSel = new Set(selected);
+    rows.filter(r => r.status === 'ok').forEach(r => newSel.add(r.card.n));
+    setSelected(newSel);
+  }
+
+  async function handleAdd() {
+    if (selected.size === 0) return;
+    await onAdd([...selected]);
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="modal-title">Agregar cartas al mazo</div>
+      <div className="import-tabs">
+        {['grid','paste'].map(t => (
+          <div key={t} className={`import-tab ${tab===t?'active':''}`} onClick={()=>setTab(t)}>
+            {t==='grid' ? 'Marcar en grilla' : 'Pegar lista'}
+          </div>
+        ))}
+      </div>
+
+      {tab === 'grid' && (
+        <div>
+          <div className="pick-toolbar">
+            <input className="search-box" placeholder="Buscar por nombre o número…" value={query} onChange={e=>setQuery(e.target.value)} />
+            <span className="pick-count">{selected.size} seleccionada{selected.size!==1?'s':''}</span>
+          </div>
+          <div className="card-grid" style={{maxHeight: 420, overflowY:'auto', paddingRight:4}}>
+            {filtered.map(card => (
+              <MoodCard key={card.n} card={card} owned={true} pickMode
+                selected={selected.has(card.n)}
+                onClick={() => alreadyIn.has(card.n) ? toast(`${card.name} ya está en este mazo`, 'error') : toggle(card)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'paste' && (
+        <div>
+          <div className="field">
+            <label>Nombres o números de colección, uno por línea</label>
+            <textarea rows={8} value={pasteText} onChange={e=>setPasteText(e.target.value)}
+              placeholder={"Love\n21\nCuriosity\n45"} />
+          </div>
+          <div style={{display:'flex', gap:'0.6rem'}}>
+            <button className="btn btn-accent btn-sm" onClick={parsePaste} disabled={!pasteText.trim()}>Interpretar lista</button>
+            <span className="pick-count">{selected.size} seleccionada{selected.size!==1?'s':''}</span>
+          </div>
+          {pasteResults && (
+            <div className="paste-results">
+              {pasteResults.map((r,i) => (
+                <div key={i} className="paste-row">
+                  <div className={`dot dot-${r.status}`} />
+                  <span>{r.card ? r.card.name : r.input}</span>
+                  <span style={{marginLeft:'auto', fontSize:'0.72rem', color:'var(--text-muted)'}}>
+                    {r.status==='ok' ? '✓ agregada a la selección' : r.status==='skip' ? 'ya en el mazo / repetida' : '✗ no encontrada'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-accent" onClick={handleAdd} disabled={selected.size===0}>
+          Agregar {selected.size>0 ? `${selected.size} carta${selected.size!==1?'s':''}` : ''}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Deck form modal ────────────────────────────────────────────────────────
+function DeckFormModal({ initial, onSave, onClose }) {
+  const [name, setName] = useState(initial?.name || '');
+  const [purchasedAt, setPurchasedAt] = useState(initial?.purchased_at || '');
+  const [notes, setNotes] = useState(initial?.notes || '');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    await onSave({ name: name.trim(), purchased_at: purchasedAt || null, notes: notes.trim() });
+    setSaving(false);
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="modal-title">{initial ? 'Editar mazo' : 'Registrar mazo / box'}</div>
+      <div className="field">
+        <label>Nombre</label>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="p. ej. Box #1 — tienda local" autoFocus />
+      </div>
+      <div className="field">
+        <label>Fecha de compra (opcional)</label>
+        <input type="date" value={purchasedAt||''} onChange={e=>setPurchasedAt(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Notas (opcional)</label>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Dónde lo compraste, con quién lo abriste, etc." />
+      </div>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-accent" onClick={handleSave} disabled={saving || !name.trim()}>
+          {saving ? <><span className="loading-spinner"/> Guardando…</> : (initial ? 'Guardar cambios' : 'Crear mazo')}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Card Info Modal (from checklist) ──────────────────────────────────────
+function CardInfoModal({ card, decksContaining, overrideNum, onSetOverride, onQuickAdd, onQuickRemove, onClose }) {
+  const [editingNum, setEditingNum] = useState(false);
+  const [numInput, setNumInput] = useState(overrideNum || String(card.n));
+  const owned = decksContaining.length > 0;
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="modal-title">{card.name}</div>
+      <div className="card-info-swatch" data-color={card.color} style={{background: `linear-gradient(160deg, var(--c-${card.color.toLowerCase()}), var(--bg3))`}}>
+        <div className="mood-card-top">
+          <span className="mood-card-num" style={{color:'rgba(0,0,0,0.6)'}}>#{overrideNum || card.n}</span>
+          <span className="mood-card-value">{formatValue(card.value)}</span>
+        </div>
+        <div className="mood-card-name" style={{color:'#1a1520', textShadow:'none'}}>{card.name}</div>
+      </div>
+      <p className="confirm-text">{COLOR_META[card.color].label} · {RARITY_META[card.rarity].label}{card.special ? ' · Variante especial' : ''}</p>
+
+      <div className="field">
+        <label>Número de colección</label>
+        {editingNum ? (
+          <div style={{display:'flex', gap:'0.5rem'}}>
+            <input value={numInput} onChange={e=>setNumInput(e.target.value)} placeholder="ej. 057" />
+            <button className="btn btn-accent btn-sm" onClick={() => { onSetOverride(card.n, numInput.trim()); setEditingNum(false); }}>Guardar</button>
+          </div>
+        ) : (
+          <div style={{display:'flex', alignItems:'center', gap:'0.6rem'}}>
+            <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{overrideNum || `${card.n} (provisional, sin confirmar)`}</span>
+            <button className="btn btn-ghost btn-sm" onClick={()=>setEditingNum(true)}>Editar</button>
+          </div>
+        )}
+      </div>
+
+      <div className="card-info-decks">
+        {owned ? (
+          <>Obtenida en:<ul>{decksContaining.map(d => <li key={d.id}>{d.name}</li>)}</ul></>
+        ) : (
+          <>No está en tu colección todavía.</>
+        )}
+      </div>
+
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
+        {owned
+          ? <button className="btn btn-danger" onClick={() => onQuickRemove(card)}>Quitar de "Cartas sueltas"</button>
+          : <button className="btn btn-accent" onClick={() => onQuickAdd(card)}>Marcar como obtenida (suelta)</button>}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Colección (checklist) view ────────────────────────────────────────────
+function ColeccionView({ toast }) {
+  const [ownedSet, setOwnedSet] = useState(new Set());
+  const [deckMap, setDeckMap] = useState({}); // card_n -> [deck rows]
+  const [overrides, setOverrides] = useState({}); // n -> official_number string
+  const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState('number');
+  const [sortDir, setSortDir] = useState('asc');
+  const [groupKey, setGroupKey] = useState('color');
+  const [query, setQuery] = useState('');
+  const [infoCard, setInfoCard] = useState(null);
+
+  async function loadAll() {
+    setLoading(true);
+    const [{ data: dc, error: e1 }, { data: decks, error: e2 }, { data: ov }] = await Promise.all([
+      sb.from('deck_cards').select('*'),
+      sb.from('decks').select('*'),
+      sb.from('card_overrides').select('*'),
+    ]);
+    if (e1 || e2) { toast('No se pudo cargar la colección', 'error'); setLoading(false); return; }
+    const deckById = Object.fromEntries((decks||[]).map(d => [d.id, d]));
+    const owned = new Set();
+    const map = {};
+    (dc||[]).forEach(row => {
+      owned.add(row.card_number);
+      if (!map[row.card_number]) map[row.card_number] = [];
+      if (deckById[row.deck_id]) map[row.card_number].push(deckById[row.deck_id]);
+    });
+    setOwnedSet(owned);
+    setDeckMap(map);
+    setOverrides(Object.fromEntries((ov||[]).map(o => [o.card_number, o.official_number])));
+    setLoading(false);
+  }
+
+  useEffect(() => { loadAll(); }, []);
+
+  async function getOrCreateLooseDeck() {
+    const { data: existing } = await sb.from('decks').select('*').eq('name', 'Cartas sueltas').maybeSingle();
+    if (existing) return existing;
+    const { data, error } = await sb.from('decks').insert([{ name: 'Cartas sueltas', notes: 'Cartas individuales obtenidas fuera de un box (trades, regalos, etc.)' }]).select().single();
+    if (error) { toast('No se pudo crear el mazo de sueltas', 'error'); return null; }
+    return data;
+  }
+
+  async function quickAdd(card) {
+    const deck = await getOrCreateLooseDeck();
+    if (!deck) return;
+    const { error } = await sb.from('deck_cards').upsert([{ deck_id: deck.id, card_number: card.n }], { onConflict: 'deck_id,card_number' });
+    if (error) { toast('No se pudo agregar', 'error'); return; }
+    toast(`${card.name} marcada como obtenida`);
+    setInfoCard(null);
+    loadAll();
+  }
+
+  async function quickRemove(card) {
+    const decksForCard = deckMap[card.n] || [];
+    const loose = decksForCard.find(d => d.name === 'Cartas sueltas');
+    if (!loose) { toast('Esta carta viene de un mazo registrado — edítalo desde "Mazos"', 'error'); return; }
+    await sb.from('deck_cards').delete().eq('deck_id', loose.id).eq('card_number', card.n);
+    toast(`${card.name} quitada de sueltas`);
+    setInfoCard(null);
+    loadAll();
+  }
+
+  async function setOverride(n, val) {
+    if (!val) { await sb.from('card_overrides').delete().eq('card_number', n); }
+    else { await sb.from('card_overrides').upsert([{ card_number: n, official_number: val }]); }
+    toast('Número actualizado');
+    loadAll();
+  }
+
+  const baseOwned = BASE_CARDS.filter(c => ownedSet.has(c.n)).length;
+  const displayGroups = applyDisplay(BASE_CARDS, ownedSet, sortKey, sortDir, groupKey, query);
+
+  return (
+    <div>
+      <div className="page-title">Colección — Mood Swings 1ed</div>
+      <div className="page-subtitle">133 cartas · gris = te falta, a color = la tienes</div>
+
+      <div className="progress-strip">
+        <div className="progress-track"><div className="progress-fill" style={{width: `${(baseOwned/BASE_CARDS.length)*100}%`}} /></div>
+        <span className="progress-text">{baseOwned} / {BASE_CARDS.length} obtenidas</span>
+      </div>
+
+      <div className="sg-bar">
+        <input className="search-box" placeholder="Buscar por nombre o número…" value={query} onChange={e=>setQuery(e.target.value)} />
+        <div className="sg-sep" />
+        <span className="sg-label">Orden</span>
+        <select className={`sg-select ${true?'active':''}`} value={sortKey} onChange={e=>setSortKey(e.target.value)}>
+          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <button className="sg-dir-btn active" onClick={()=>setSortDir(d=>d==='asc'?'desc':'asc')}>{sortDir==='asc'?'↑':'↓'}</button>
+        <div className="sg-sep" />
+        <span className="sg-label">Agrupar</span>
+        <select className={`sg-select ${groupKey!=='none'?'active':''}`} value={groupKey} onChange={e=>setGroupKey(e.target.value)}>
+          {GROUP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : (
+        <div>
+          {displayGroups.map(({ groupKey: gk, groupLabel, cards }) => (
+            <div key={gk} className={groupKey!=='none'?'card-group':''}>
+              {groupKey!=='none' && groupLabel && (
+                <div className="card-group-header">
+                  <span className="card-group-name">{groupLabel}</span>
+                  <span className="card-group-count">{cards.filter(c=>ownedSet.has(c.n)).length}/{cards.length}</span>
+                </div>
+              )}
+              <div className="card-grid">
+                {cards.map(card => (
+                  <MoodCard key={card.n} card={card} owned={ownedSet.has(card.n)} overrideNum={overrides[card.n]} onClick={setInfoCard} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="card-group">
+            <div className="card-group-header"><span className="card-group-name">Especiales</span></div>
+            <div className="card-grid">
+              {SPECIAL_CARDS.map(card => (
+                <MoodCard key={card.n} card={card} owned={ownedSet.has(card.n)} overrideNum={overrides[card.n]} onClick={setInfoCard} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoCard && (
+        <CardInfoModal
+          card={infoCard}
+          decksContaining={deckMap[infoCard.n] || []}
+          overrideNum={overrides[infoCard.n]}
+          onSetOverride={setOverride}
+          onQuickAdd={quickAdd}
+          onQuickRemove={quickRemove}
+          onClose={() => setInfoCard(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Deck detail view ───────────────────────────────────────────────────────
+function DeckDetail({ deck, onBack, toast }) {
+  const [cardNums, setCardNums] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await sb.from('deck_cards').select('card_number').eq('deck_id', deck.id);
+    if (error) { toast('No se pudo cargar el mazo', 'error'); setLoading(false); return; }
+    setCardNums((data||[]).map(r => r.card_number));
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, [deck.id]);
+
+  async function addCards(nums) {
+    const rows = nums.map(n => ({ deck_id: deck.id, card_number: n }));
+    const { error } = await sb.from('deck_cards').upsert(rows, { onConflict: 'deck_id,card_number' });
+    if (error) { toast('No se pudieron agregar las cartas', 'error'); return; }
+    toast(`Agregadas ${nums.length} carta${nums.length!==1?'s':''}`);
+    load();
+  }
+
+  async function removeCard(n) {
+    await sb.from('deck_cards').delete().eq('deck_id', deck.id).eq('card_number', n);
+    toast('Carta quitada del mazo');
+    setConfirmRemove(null);
+    load();
+  }
+
+  const cards = cardNums.map(n => CARD_BY_N[n]).filter(Boolean).sort((a,b)=>a.n-b.n);
+  const alreadyIn = new Set(cardNums);
+
+  return (
+    <div>
+      <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'1rem', marginBottom:'1.6rem', flexWrap:'wrap'}}>
+        <div>
+          <div className="page-title">{deck.name}</div>
+          {deck.notes && <div className="page-subtitle" style={{marginBottom:'0.3rem'}}>{deck.notes}</div>}
+          <div className="progress-text">{cards.length} carta{cards.length!==1?'s':''} registrada{cards.length!==1?'s':''} {deck.name !== 'Cartas sueltas' && '(un box trae 45)'}</div>
+        </div>
+        <div style={{display:'flex', gap:'0.6rem'}}>
+          <button className="btn btn-ghost" onClick={onBack}>← Mazos</button>
+          <button className="btn btn-accent" onClick={()=>setShowPicker(true)}>+ Agregar cartas</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : cards.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon">◐</div>
+          <p>Todavía no registraste cartas para este mazo.<br/>Usa "+ Agregar cartas" para marcarlas o pegar la lista.</p>
+        </div>
+      ) : (
+        <div className="card-grid">
+          {cards.map(card => (
+            <div key={card.n} style={{position:'relative'}}>
+              <MoodCard card={card} owned={true} onClick={()=>{}} />
+              <button className="btn btn-danger btn-sm" style={{position:'absolute', bottom:'-2px', right:'-2px', borderRadius:'6px', padding:'2px 6px', fontSize:'0.6rem'}}
+                onClick={(e)=>{e.stopPropagation(); setConfirmRemove(card);}}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showPicker && (
+        <CardPickerModal alreadyIn={alreadyIn} onAdd={addCards} onClose={()=>setShowPicker(false)} toast={toast} />
+      )}
+      {confirmRemove && (
+        <ConfirmModal message={`¿Quitar "${confirmRemove.name}" de este mazo?`} onConfirm={()=>removeCard(confirmRemove.n)} onCancel={()=>setConfirmRemove(null)} />
+      )}
+    </div>
+  );
+}
+
+// ─── Mazos home ─────────────────────────────────────────────────────────────
+function MazosHome({ onOpenDeck, toast }) {
+  const [decks, setDecks] = useState([]);
+  const [counts, setCounts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await sb.from('decks').select('*').order('created_at', { ascending: true });
+    if (error) { toast('No se pudieron cargar los mazos', 'error'); setLoading(false); return; }
+    setDecks(data || []);
+    for (const d of (data||[])) {
+      const { data: dc } = await sb.from('deck_cards').select('card_number').eq('deck_id', d.id);
+      setCounts(c => ({ ...c, [d.id]: dc ? dc.length : 0 }));
+    }
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function createDeck(fields) {
+    const { data, error } = await sb.from('decks').insert([fields]).select().single();
+    if (error) { toast('No se pudo crear el mazo', 'error'); return; }
+    toast(`"${data.name}" creado`);
+    setShowForm(false);
+    load();
+  }
+  async function updateDeck(fields) {
+    const { error } = await sb.from('decks').update(fields).eq('id', editTarget.id);
+    if (error) { toast('No se pudo actualizar', 'error'); return; }
+    toast('Mazo actualizado');
+    setEditTarget(null);
+    load();
+  }
+  async function deleteDeck(deck) {
+    const { error } = await sb.from('decks').delete().eq('id', deck.id);
+    if (error) { toast('No se pudo eliminar', 'error'); return; }
+    toast(`"${deck.name}" eliminado`);
+    setConfirm(null);
+    load();
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:'1.6rem', flexWrap:'wrap', gap:'1rem'}}>
+        <div>
+          <div className="page-title">Mis mazos</div>
+          <div className="page-subtitle">Cada box trae 45 cartas al azar — regístralas aquí para que se marquen en tu colección</div>
+        </div>
+        <button className="btn btn-accent" onClick={()=>setShowForm(true)}>+ Registrar mazo</button>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : decks.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon">◐</div>
+          <p>Todavía no registraste ningún mazo.</p>
+        </div>
+      ) : (
+        <div className="decks-grid">
+          {decks.map(deck => (
+            <div key={deck.id} className="deck-card" onClick={()=>onOpenDeck(deck)}>
+              <div className="deck-card-name">{deck.name}</div>
+              {deck.purchased_at && <div className="deck-card-date">{deck.purchased_at}</div>}
+              <div className="deck-card-desc">{deck.notes || ' '}</div>
+              <div className="deck-card-meta">
+                <span>{counts[deck.id] ?? '—'} cartas</span>
+              </div>
+              <div className="deck-card-actions" onClick={e=>e.stopPropagation()}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setEditTarget(deck)}>Editar</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>setConfirm(deck)}>Eliminar</button>
+              </div>
+            </div>
+          ))}
+          <div className="deck-card new-deck-card" onClick={()=>setShowForm(true)}>
+            <span className="plus">+</span> Registrar mazo
+          </div>
+        </div>
+      )}
+
+      {showForm && <DeckFormModal onSave={createDeck} onClose={()=>setShowForm(false)} />}
+      {editTarget && <DeckFormModal initial={editTarget} onSave={updateDeck} onClose={()=>setEditTarget(null)} />}
+      {confirm && <ConfirmModal message={`¿Eliminar "${confirm.name}" y quitar sus cartas de la colección?`} onConfirm={()=>deleteDeck(confirm)} onCancel={()=>setConfirm(null)} />}
+    </div>
+  );
+}
+
+// ─── App ────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState('coleccion'); // 'coleccion' | 'mazos'
+  const [activeDeck, setActiveDeck] = useState(null);
+  const { toasts, add: toast } = useToasts();
+
+  function goTab(t) { setTab(t); setActiveDeck(null); }
+
+  return (
+    <div className="app">
+      <header>
+        <div className="header-logo-wrap" onClick={()=>goTab('coleccion')}>
+          <div className="mood-ring" />
+          <div className="header-logo">Moodboard<span>Mood Swings Tracker</span></div>
+        </div>
+        <div className="header-sep" />
+        <nav className="tabs">
+          <button className={`tab-btn ${tab==='coleccion'?'active':''}`} onClick={()=>goTab('coleccion')}>Colección</button>
+          <button className={`tab-btn ${tab==='mazos'?'active':''}`} onClick={()=>goTab('mazos')}>Mazos</button>
+        </nav>
+      </header>
+      <main>
+        {tab === 'coleccion' && <ColeccionView toast={toast} />}
+        {tab === 'mazos' && !activeDeck && <MazosHome onOpenDeck={setActiveDeck} toast={toast} />}
+        {tab === 'mazos' && activeDeck && <DeckDetail deck={activeDeck} onBack={()=>setActiveDeck(null)} toast={toast} />}
+      </main>
+      <ToastContainer toasts={toasts} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
