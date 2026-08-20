@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>25 Palabras o Menos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0b0f;
+    --panel: #13151b;
+    --panel-2: #1a1d25;
+    --border: #262a33;
+    --border-bright: #383e4c;
+    --text: #eef1f6;
+    --text-dim: #8a8f9c;
+    --text-muted: #4d525e;
+
+    --team-a: #34e0c9;
+    --team-a-dim: #163832;
+    --team-b: #ff5f7e;
+    --team-b-dim: #3a1a22;
+
+    --amber: #ffb020;
+    --red: #ff4545;
+    --success: #34e0a1;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(52,224,201,0.06), transparent 55%),
+      radial-gradient(circle at 50% 100%, rgba(255,95,126,0.05), transparent 55%),
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: auto, auto, 28px 28px, 28px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.2rem;
+  }
+
+  #root { width: 100%; max-width: 480px; }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 0.4rem;
+  }
+
+  .title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 2rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+    margin-bottom: 1.6rem;
+    background: linear-gradient(90deg, var(--team-a), var(--team-b));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.6rem;
+  }
+
+  .field { margin-bottom: 1.1rem; }
+  .field label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.45rem;
+  }
+  .field input[type="text"] {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input[type="text"]:focus { border-color: var(--border-bright); }
+  .field.team-a input[type="text"]:focus { border-color: var(--team-a); }
+  .field.team-b input[type="text"]:focus { border-color: var(--team-b); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border-radius: 9px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: transform 0.1s, filter 0.15s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+  .btn-primary { background: linear-gradient(135deg, #24d4b8, #1aa892); color: #06120f; }
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  .btn-success { background: linear-gradient(135deg, #34e0a1, #1fae7d); color: #06140f; }
+  .btn-success:hover { filter: brightness(1.08); }
+
+  .btn-danger { background: linear-gradient(135deg, #ff5f5f, #d63a3a); color: #1a0505; }
+  .btn-danger:hover { filter: brightness(1.08); }
+
+  .btn-ghost {
+    background: transparent;
+    border-color: var(--border-bright);
+    color: var(--text-dim);
+  }
+  .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+
+  .row { display: flex; gap: 0.7rem; }
+  .row .btn { flex: 1; }
+
+  .link-btn {
+    display: block;
+    text-align: center;
+    margin-top: 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .link-btn:hover { color: var(--text-dim); }
+
+  /* ── Scoreboard ── */
+  .scoreboard {
+    display: flex;
+    gap: 0.7rem;
+    margin-bottom: 1.2rem;
+  }
+  .plaque {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.9rem 0.8rem;
+    text-align: center;
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .plaque.turn-a { border-color: var(--team-a); box-shadow: 0 0 0 1px var(--team-a), 0 0 18px rgba(52,224,201,0.18); }
+  .plaque.turn-b { border-color: var(--team-b); box-shadow: 0 0 0 1px var(--team-b), 0 0 18px rgba(255,95,126,0.18); }
+
+  .plaque-turn-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    height: 1em;
+    margin-bottom: 0.3rem;
+  }
+  .plaque.turn-a .plaque-turn-tag { color: var(--team-a); }
+  .plaque.turn-b .plaque-turn-tag { color: var(--team-b); }
+
+  .plaque-name {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .plaque-score {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 2.1rem;
+    line-height: 1;
+  }
+  .plaque.turn-a .plaque-score { color: var(--team-a); }
+  .plaque.turn-b .plaque-score { color: var(--team-b); }
+  .plaque:not(.turn-a):not(.turn-b) .plaque-score { color: var(--text-dim); }
+
+  /* ── Number slider ── */
+  .slider-wrap { margin-bottom: 1.4rem; }
+  .slider-readout {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 2.6rem;
+    text-align: center;
+    line-height: 1;
+    margin-bottom: 0.6rem;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--panel-2);
+    outline: none;
+    border: 1px solid var(--border);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--border-bright);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+    border: 3px solid var(--bg);
+  }
+  .slider-scale {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+  }
+
+  /* ── Dial (running / timeup) ── */
+  .dial-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 0.4rem 0 1.4rem;
+  }
+  .dial {
+    position: relative;
+    width: 240px;
+    height: 240px;
+  }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial circle { fill: none; }
+  .ring-track { stroke: var(--panel-2); }
+  .ring-time { stroke: var(--team-a); stroke-linecap: round; transition: stroke-dashoffset 0.2s linear, stroke 0.3s; }
+  .ring-time.warn { stroke: var(--amber); }
+  .ring-time.critical { stroke: var(--red); }
+  .ring-count { stroke-linecap: round; transition: stroke-dashoffset 0.15s ease-out; }
+  .ring-count.team-a { stroke: var(--team-a); }
+  .ring-count.team-b { stroke: var(--team-b); }
+
+  .dial-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .dial-number-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 4.2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.3rem 1rem;
+    transition: transform 0.08s;
+  }
+  .dial-number-btn:active { transform: scale(0.92); }
+  .dial-number-btn:disabled { cursor: default; }
+  .dial-hint {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-top: -0.4rem;
+  }
+  .dial-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.1rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    letter-spacing: 0.05em;
+  }
+  .dial-time.warn { color: var(--amber); }
+  .dial-time.critical { color: var(--red); }
+
+  .timeup-banner {
+    text-align: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 1.3rem;
+    color: var(--red);
+    margin-bottom: 1.2rem;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── Winner ── */
+  .winner-panel { text-align: center; }
+  .winner-trophy { font-size: 2.6rem; margin-bottom: 0.6rem; }
+  .winner-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 1.6rem;
+    margin-bottom: 0.3rem;
+  }
+  .winner-title.team-a { color: var(--team-a); }
+  .winner-title.team-b { color: var(--team-b); }
+  .winner-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 1.6rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+
+  @media (max-width: 400px) {
+    .dial { width: 210px; height: 210px; }
+    .dial-number-btn { font-size: 3.6rem; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ── Estado en memoria (nada se persiste) ──
+const state = {
+  phase: 'setup',       // setup | ready | running | timeup | winner
+  teamNames: { a: '', b: '' },
+  scores: { a: 0, b: 0 },
+  activeTeam: 'a',
+  selectedNumber: 25,
+  counter: 10,
+  timeLeft: 60,
+  timerHandle: null,
+  startedAt: null,
+};
+
+const ROUND_SECONDS = 60;
+const WIN_SCORE = 10;
+const R_TIME = 100;
+const R_COUNT = 74;
+const CIRC_TIME = 2 * Math.PI * R_TIME;
+const CIRC_COUNT = 2 * Math.PI * R_COUNT;
+
+function teamName(t) {
+  return t === 'a' ? (state.teamNames.a || 'Equipo A') : (state.teamNames.b || 'Equipo B');
+}
+function teamColorVar(t) { return t === 'a' ? '--team-a' : '--team-b'; }
+
+// ── Acciones ──
+function startMatch() {
+  const a = document.getElementById('input-team-a')?.value.trim();
+  const b = document.getElementById('input-team-b')?.value.trim();
+  state.teamNames.a = a || 'Equipo A';
+  state.teamNames.b = b || 'Equipo B';
+  state.scores = { a: 0, b: 0 };
+  state.activeTeam = 'a';
+  state.phase = 'ready';
+  render();
+}
+
+function setSelectedNumber(n) {
+  state.selectedNumber = Number(n);
+  const readout = document.getElementById('slider-readout');
+  if (readout) readout.textContent = state.selectedNumber;
+}
+
+function swapTurn() {
+  state.activeTeam = state.activeTeam === 'a' ? 'b' : 'a';
+  render();
+}
+
+function startRound() {
+  state.counter = state.selectedNumber;
+  state.timeLeft = ROUND_SECONDS;
+  state.startedAt = performance.now();
+  state.phase = 'running';
+  render();
+  state.timerHandle = setInterval(tick, 100);
+}
+
+function tick() {
+  const elapsed = (performance.now() - state.startedAt) / 1000;
+  state.timeLeft = Math.max(0, ROUND_SECONDS - elapsed);
+  updateDialDOM();
+  if (state.timeLeft <= 0) {
+    clearInterval(state.timerHandle);
+    state.timerHandle = null;
+    state.phase = 'timeup';
+    render();
+  }
+}
+
+function tapDecrement() {
+  if (state.phase !== 'running' || state.counter <= 0) return;
+  state.counter -= 1;
+  updateDialDOM();
+}
+
+function resolveRound(success) {
+  if (state.timerHandle) { clearInterval(state.timerHandle); state.timerHandle = null; }
+  if (success) {
+    state.scores[state.activeTeam] += 1;
+    if (state.scores[state.activeTeam] >= WIN_SCORE) {
+      state.phase = 'winner';
+      render();
+      return;
+    }
+  }
+  state.activeTeam = state.activeTeam === 'a' ? 'b' : 'a';
+  state.phase = 'ready';
+  render();
+}
+
+function playAgainSameTeams() {
+  state.scores = { a: 0, b: 0 };
+  state.activeTeam = 'a';
+  state.phase = 'ready';
+  render();
+}
+
+function resetMatch() {
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = null;
+  state.phase = 'setup';
+  state.scores = { a: 0, b: 0 };
+  state.selectedNumber = 10;
+  render();
+}
+
+// ── Render ──
+function scoreboardHTML() {
+  return `
+    <div class="scoreboard">
+      <div class="plaque ${state.activeTeam === 'a' ? 'turn-a' : ''}">
+        <div class="plaque-turn-tag">${state.activeTeam === 'a' ? 'TURNO' : ''}</div>
+        <div class="plaque-name">${escapeHTML(teamName('a'))}</div>
+        <div class="plaque-score">${state.scores.a}</div>
+      </div>
+      <div class="plaque ${state.activeTeam === 'b' ? 'turn-b' : ''}">
+        <div class="plaque-turn-tag">${state.activeTeam === 'b' ? 'TURNO' : ''}</div>
+        <div class="plaque-name">${escapeHTML(teamName('b'))}</div>
+        <div class="plaque-score">${state.scores.b}</div>
+      </div>
+    </div>`;
+}
+
+function dialHTML(interactive) {
+  const timeFrac = state.timeLeft / ROUND_SECONDS;
+  const countFrac = state.counter / state.selectedNumber;
+  const timeOffset = CIRC_TIME * (1 - timeFrac);
+  const countOffset = CIRC_COUNT * (1 - countFrac);
+  const timeClass = state.timeLeft <= 10 ? 'critical' : state.timeLeft <= 20 ? 'warn' : '';
+  const mm = Math.floor(state.timeLeft / 60);
+  const ss = Math.floor(state.timeLeft % 60).toString().padStart(2, '0');
+  return `
+    <div class="dial-wrap">
+      <div class="dial">
+        <svg viewBox="0 0 240 240">
+          <circle class="ring-track" cx="120" cy="120" r="${R_TIME}" stroke-width="10"/>
+          <circle id="ring-time" class="ring-time ${timeClass}" cx="120" cy="120" r="${R_TIME}" stroke-width="10"
+            stroke-dasharray="${CIRC_TIME}" stroke-dashoffset="${timeOffset}"/>
+          <circle class="ring-track" cx="120" cy="120" r="${R_COUNT}" stroke-width="10"/>
+          <circle id="ring-count" class="ring-count team-${state.activeTeam}" cx="120" cy="120" r="${R_COUNT}" stroke-width="10"
+            stroke-dasharray="${CIRC_COUNT}" stroke-dashoffset="${countOffset}"/>
+        </svg>
+        <div class="dial-center">
+          <button id="dial-number-btn" class="dial-number-btn" ${interactive ? '' : 'disabled'} onclick="tapDecrement()">${state.counter}</button>
+          <div class="dial-hint">${interactive ? 'toca para restar' : 'aciertos'}</div>
+          <div id="dial-time" class="dial-time ${timeClass}">${mm}:${ss}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function updateDialDOM() {
+  const ringTime = document.getElementById('ring-time');
+  const ringCount = document.getElementById('ring-count');
+  const dialTime = document.getElementById('dial-time');
+  const dialNumberBtn = document.getElementById('dial-number-btn');
+  if (!ringTime) return;
+  const timeFrac = state.timeLeft / ROUND_SECONDS;
+  const countFrac = state.counter / state.selectedNumber;
+  ringTime.setAttribute('stroke-dashoffset', CIRC_TIME * (1 - timeFrac));
+  ringCount.setAttribute('stroke-dashoffset', CIRC_COUNT * (1 - countFrac));
+  const timeClass = state.timeLeft <= 10 ? 'critical' : state.timeLeft <= 20 ? 'warn' : '';
+  ringTime.className.baseVal = `ring-time ${timeClass}`;
+  dialTime.className = `dial-time ${timeClass}`;
+  const mm = Math.floor(state.timeLeft / 60);
+  const ss = Math.floor(state.timeLeft % 60).toString().padStart(2, '0');
+  dialTime.textContent = `${mm}:${ss}`;
+  if (dialNumberBtn) dialNumberBtn.textContent = state.counter;
+}
+
+function escapeHTML(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function render() {
+  const root = document.getElementById('root');
+  let inner = '';
+
+  if (state.phase === 'setup') {
+    inner = `
+      <div class="eyebrow">Duelo por equipos · contrarreloj</div>
+      <div class="title">25 Palabras o Menos</div>
+      <div class="panel">
+        <div class="field team-a">
+          <label>Nombre del Equipo A</label>
+          <input type="text" id="input-team-a" placeholder="Equipo A" maxlength="24" onkeydown="if(event.key==='Enter')startMatch()">
+        </div>
+        <div class="field team-b">
+          <label>Nombre del Equipo B</label>
+          <input type="text" id="input-team-b" placeholder="Equipo B" maxlength="24" onkeydown="if(event.key==='Enter')startMatch()">
+        </div>
+        <button class="btn btn-primary" onclick="startMatch()">Comenzar partida</button>
+      </div>`;
+  }
+
+  else if (state.phase === 'ready') {
+    inner = `
+      <div class="eyebrow">Duelo por equipos · contrarreloj</div>
+      <div class="title">25 Palabras o Menos</div>
+      ${scoreboardHTML()}
+      <div class="panel">
+        <div class="slider-wrap">
+          <div class="slider-readout" id="slider-readout">${state.selectedNumber}</div>
+          <input type="range" min="1" max="25" value="${state.selectedNumber}" oninput="setSelectedNumber(this.value)">
+          <div class="slider-scale"><span>1</span><span>25</span></div>
+        </div>
+        <button class="btn btn-primary" onclick="startRound()">Iniciar reto · 1:00</button>
+        <button class="link-btn" onclick="swapTurn()">Cambiar turno manualmente</button>
+      </div>
+      <button class="link-btn" onclick="resetMatch()">Reiniciar partida</button>`;
+  }
+
+  else if (state.phase === 'running') {
+    inner = `
+      <div class="eyebrow">Duelo por equipos · contrarreloj</div>
+      <div class="title">25 Palabras o Menos</div>
+      ${scoreboardHTML()}
+      <div class="panel">
+        ${dialHTML(true)}
+        <div class="row">
+          <button class="btn btn-success" onclick="resolveRound(true)">✓ Completado</button>
+          <button class="btn btn-danger" onclick="resolveRound(false)">✕ Falló</button>
+        </div>
+      </div>`;
+  }
+
+  else if (state.phase === 'timeup') {
+    inner = `
+      <div class="eyebrow">Duelo por equipos · contrarreloj</div>
+      <div class="title">25 Palabras o Menos</div>
+      ${scoreboardHTML()}
+      <div class="panel">
+        <div class="timeup-banner">¡Se acabó el tiempo!</div>
+        ${dialHTML(false)}
+        <div class="row">
+          <button class="btn btn-success" onclick="resolveRound(true)">Logrado</button>
+          <button class="btn btn-danger" onclick="resolveRound(false)">No logrado</button>
+        </div>
+      </div>`;
+  }
+
+  else if (state.phase === 'winner') {
+    const w = state.scores.a >= WIN_SCORE ? 'a' : 'b';
+    inner = `
+      <div class="eyebrow">Duelo por equipos · contrarreloj</div>
+      <div class="title">25 Palabras o Menos</div>
+      <div class="panel winner-panel">
+        <div class="winner-trophy">🏆</div>
+        <div class="winner-title team-${w}">${escapeHTML(teamName(w))} gana la partida</div>
+        <div class="winner-sub">${state.scores.a} — ${state.scores.b}</div>
+        <div class="row">
+          <button class="btn btn-primary" onclick="playAgainSameTeams()">Revancha</button>
+          <button class="btn btn-ghost" onclick="resetMatch()">Cambiar equipos</button>
+        </div>
+      </div>`;
+  }
+
+  root.innerHTML = inner;
+  if (state.phase === 'ready') {
+    const readout = document.getElementById('slider-readout');
+    if (readout) readout.textContent = state.selectedNumber;
+  }
+}
+
+render();
+</script>
+</body>
+</html>
