@@ -419,18 +419,18 @@ function comboQuery(ci) {
 
 // ─── Configuración: Planeswalkers comandantes ─────────────────────────────────
 const PW_SUBGROUPS = [
-  { key: 'pw_transform', label: 'Transforman', query: 'is:commander is:tdfc game:paper' },
-  { key: 'pw_text',      label: 'Texto "can be your commander"', query: 't:planeswalker is:commander -is:dfc game:paper' },
-  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: 'is:commander is:mdfc game:paper' },
+  { key: 'pw_transform', label: 'Transforman', query: '(f:commander is:commander t:planeswalker is:tdfc game:paper) or (is:funny is:commander t:planeswalker is:tdfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_text',      label: 'Texto "can be your commander"', query: '(f:commander is:commander t:planeswalker -is:dfc game:paper) or (is:funny is:commander t:planeswalker -is:dfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: '(f:commander is:commander t:planeswalker is:mdfc game:paper) or (is:funny is:commander t:planeswalker is:mdfc game:paper -b:da1 -b:ph22)' },
 ];
 
 // ─── Configuración: Comandantes en pareja ─────────────────────────────────────
 const PARTNER_SUBGROUPS = [
-  { key: 'pt_plain',    label: 'Partner (a secas)', query: 'is:commander o:"Partner" -o:"Partner with" -o:"Partner—" game:paper' },
-  { key: 'pt_variant',  label: 'Variantes (Friends forever, Survivors...)', query: 'is:commander o:"Partner—" game:paper' },
-  { key: 'pt_with',     label: '"Partner with" (pareja fija)', query: 'is:commander o:"partner with" game:paper' },
-  { key: 'pt_doctor',   label: 'Doctor / Doctor\'s companion', query: '(t:"Time Lord Doctor" or o:"doctor\'s companion") game:paper' },
-  { key: 'pt_background', label: 'Background / Choose a Background', query: '(t:background or o:"choose a background") game:paper' },
+  { key: 'pt_plain',    label: 'Partner (a secas)', query: '(f:commander is:commander game:paper o:"Partner" -o:"Partner with" -o:"Partner—") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"Partner" -o:"Partner with" -o:"Partner—")' },
+  { key: 'pt_variant',  label: 'Variantes (Friends forever, Survivors...)', query: '(f:commander is:commander game:paper o:"Partner—") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"Partner—")' },
+  { key: 'pt_with',     label: '"Partner with" (pareja fija)', query: '(f:commander is:commander game:paper o:"partner with") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"partner with")' },
+  { key: 'pt_doctor',   label: 'Doctor / Doctor\'s companion', query: '(f:commander is:commander game:paper (t:"Time Lord Doctor" or o:"doctor\'s companion")) or (is:funny is:commander game:paper -b:da1 -b:ph22 (t:"Time Lord Doctor" or o:"doctor\'s companion"))' },
+  { key: 'pt_background', label: 'Background / Choose a Background', query: '(f:commander is:commander game:paper (t:background or o:"choose a background")) or (is:funny is:commander game:paper -b:da1 -b:ph22 (t:background or o:"choose a background"))' },
 ];
 
 const ALL_REGISTER_MODULE_KEYS = [
