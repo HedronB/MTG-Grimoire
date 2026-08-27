@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MTG Commander Hall</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --bg2: #13131a;
+      --bg3: #1a1a26;
+      --border: #2a2a3d;
+      --border-bright: #4a4a6a;
+      --gold: #c9a84c;
+      --gold-light: #e8c87a;
+      --gold-dim: #7a6030;
+      --text: #e8e4d8;
+      --text-dim: #8a8478;
+      --text-muted: #4a4840;
+      --accent: #7b4fc4;
+      --accent2: #4f86c4;
+      --red: #c44f4f;
+      --owned: #4fc47b;
+      --cW: #e8dfae; --cU: #6ea7d6; --cB: #8b7fa8; --cR: #d17a5a; --cG: #6fae7a; --cC: #9a9aa8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Crimson Pro', Georgia, serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.5;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: linear-gradient(180deg, #16141f 0%, transparent 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+      flex-wrap: wrap;
+    }
+
+    .header-logo {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 1.3rem;
+      color: var(--gold);
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      text-shadow: 0 0 20px rgba(201,168,76,0.3);
+      flex-shrink: 0;
+    }
+    .header-logo span {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-family: 'Cinzel', serif;
+      display: block;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-top: -2px;
+    }
+    .header-sep { flex: 1; }
+    .breadcrumb {
+      font-family: 'Cinzel', serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .breadcrumb .crumb-active { color: var(--gold); }
+    .breadcrumb .sep { color: var(--text-muted); }
+    .breadcrumb .crumb { cursor: pointer; }
+    .breadcrumb .crumb:hover { color: var(--text); }
+
+    main { flex: 1; padding: 2rem; max-width: 1500px; margin: 0 auto; width: 100%; }
+
+    .page-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: var(--gold);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.05em;
+    }
+    .page-subtitle {
+      color: var(--text-dim);
+      font-size: 1.05rem;
+      font-style: italic;
+      margin-bottom: 2rem;
+    }
+
+    .section-heading {
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--gold-dim);
+      margin: 2.2rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-heading:first-of-type { margin-top: 0; }
+
+    .tiles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.9rem;
+    }
+
+    .tile {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 0.9rem;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      position: relative;
+    }
+    .tile:hover { border-color: var(--gold-dim); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+
+    .tile-pips { display: flex; gap: 3px; margin-bottom: 0.6rem; }
+    .pip {
+      width: 16px; height: 16px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; font-weight: 700; color: #1a1a1a;
+      font-family: 'Cinzel', serif;
+    }
+    .pip-W { background: var(--cW); } .pip-U { background: var(--cU); }
+    .pip-B { background: var(--cB); } .pip-R { background: var(--cR); }
+    .pip-G { background: var(--cG); } .pip-C { background: var(--cC); }
+
+    .tile-name { font-family: 'Cinzel', serif; font-size: 0.85rem; color: var(--text); font-weight: 600; }
+    .tile-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .tile-count { position: absolute; top: 0.6rem; right: 0.7rem; font-size: 0.65rem; font-family: 'Cinzel', serif; color: var(--text-dim); }
+    .tile-count .n-owned { color: var(--owned); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 1rem; border-radius: 5px;
+      font-family: 'Cinzel', serif; font-size: 0.78rem; letter-spacing: 0.08em;
+      cursor: pointer; transition: all 0.15s; border: 1px solid;
+    }
+    .btn-gold { background: linear-gradient(135deg, #3a2e10, #2a2010); border-color: var(--gold-dim); color: var(--gold-light); }
+    .btn-gold:hover { background: linear-gradient(135deg, #4a3e18, #3a2e14); border-color: var(--gold); }
+    .btn-gold:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ghost { background: transparent; border-color: var(--border-bright); color: var(--text-dim); }
+    .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+    .btn-ghost.active-chip { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
+    .btn-danger { background: transparent; border-color: #5a2020; color: #c47a7a; }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+    .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.72rem; }
+
+    .tabs {
+      display: flex; gap: 0; margin-bottom: 1.4rem; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .tab {
+      padding: 0.6rem 1rem; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.08em;
+      cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; transition: all 0.15s; margin-bottom: -1px;
+    }
+    .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    .list-view-header { display: flex; align-items: flex-start; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .list-view-title { font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 700; color: var(--gold); }
+    .list-view-desc { color: var(--text-dim); font-style: italic; margin-top: 0.2rem; font-size: 0.9rem; }
+    .list-view-stats { margin-top: 0.5rem; font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.1em; color: var(--text-muted); }
+    .list-view-stats .owned-count { color: var(--owned); }
+    .list-view-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+
+    .companion-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.3rem; }
+    .companion-chip {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.7rem; border-radius: 20px; border: 1px solid var(--border-bright);
+      background: var(--bg3); cursor: pointer; font-size: 0.7rem; font-family: 'Cinzel', serif;
+      letter-spacing: 0.04em; color: var(--text-dim); transition: all 0.15s;
+    }
+    .companion-chip:hover { color: var(--text); }
+    .companion-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.1); }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1.1rem; }
+    .card-item { position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; aspect-ratio: 63/88; background: var(--bg3); }
+    .card-item:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 12px 32px rgba(0,0,0,0.6); z-index: 2; }
+    .card-item img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; transition: filter 0.4s ease; }
+    .card-item.missing img { filter: grayscale(100%) brightness(0.65); }
+    .card-item .card-overlay { position: absolute; inset: 0; border-radius: 8px; border: 2px solid transparent; transition: border-color 0.2s; }
+    .card-item.owned .card-overlay { border-color: rgba(79,196,123,0.4); }
+    .card-item.missing .card-overlay { border-color: rgba(100,100,140,0.3); }
+    .card-item .card-name-tooltip {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.88));
+      padding: 1.5rem 0.5rem 0.4rem; font-family: 'Cinzel', serif; font-size: 0.63rem; letter-spacing: 0.03em;
+      color: var(--text); opacity: 0; transition: opacity 0.2s; border-radius: 0 0 8px 8px;
+    }
+    .card-item:hover .card-name-tooltip { opacity: 1; }
+    .card-item .card-remove-btn {
+      position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); border: none; border-radius: 50%;
+      width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+      opacity: 0; transition: opacity 0.2s; color: #c47a7a; font-size: 0.8rem; line-height: 1;
+    }
+    .card-item:hover .card-remove-btn { opacity: 1; }
+    .card-item .card-remove-btn:hover { color: var(--red); }
+    .card-item .card-src-badge {
+      position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.65); border-radius: 4px;
+      padding: 2px 5px; font-size: 0.55rem; font-family: 'Cinzel', serif; letter-spacing: 0.03em; color: var(--gold-light);
+      z-index: 3;
+    }
+    .card-placeholder {
+      background: linear-gradient(135deg, var(--bg3), var(--bg2)); border-radius: 8px; aspect-ratio: 63/88;
+      display: flex; align-items: center; justify-content: center; font-size: 0.68rem; color: var(--text-muted);
+      font-family: 'Cinzel', serif; letter-spacing: 0.05em; animation: pulse 1.5s infinite; text-align:center; padding: 0.4rem;
+    }
+    @keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+    .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border-bright); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); font-style: italic; }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(4px); animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .modal { background: var(--bg2); border: 1px solid var(--border-bright); border-radius: 10px; padding: 2rem; width: 100%; max-width: 520px; animation: slideUp 0.2s ease; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-family: 'Cinzel', serif; font-size: 1.1rem; font-weight: 600; color: var(--gold); margin-bottom: 1.5rem; letter-spacing: 0.05em; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.5rem; }
+    .confirm-text { color: var(--text-dim); font-size: 1rem; line-height: 1.6; margin-bottom: 0.5rem; }
+
+    .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9000; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
+    .toast { background: var(--bg2); border: 1px solid var(--border-bright); border-radius: 6px; padding: 0.7rem 1rem; font-size: 0.85rem; color: var(--text); animation: slideUp 0.2s ease; max-width: 300px; }
+    .toast.success { border-color: var(--owned); }
+    .toast.error { border-color: var(--red); }
+
+    .info-note { font-size: 0.78rem; color: var(--text-muted); font-style: italic; margin-bottom: 1rem; line-height: 1.5; }
+
+    @media (max-width: 600px) {
+      header { padding: 1rem; } main { padding: 1rem; }
+      .list-view-title { font-size: 1.2rem; }
+      .btn { padding: 0.45rem 0.7rem; font-size: 0.72rem; }
+      .header-logo { font-size: 1.1rem; }
+      .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.7rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+// ─── Supabase (shared project with Grimoire, separate tables) ────────────────
+const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BkMOyjHirWBxgR-KzwdqtQ_bH8MzuI1';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: { headers: { 'x-app-secret': '5223jace' } }
+});
+/*
+  Tabla requerida en Supabase (crear manualmente, misma RLS que Grimoire con header x-app-secret):
+
+  create table ch_cards (
+    id uuid primary key default gen_random_uuid(),
+    module_key text not null,
+    scryfall_id text not null,
+    owned boolean default false,
+    position integer default 0,
+    added_at timestamptz default now(),
+    unique (module_key, scryfall_id)
+  );
+  create index idx_ch_cards_module on ch_cards(module_key);
+*/
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts(t => [...t, { id, msg, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500);
+  }, []);
+  return { toasts, add };
+}
+function ToastContainer({ toasts }) {
+  return <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}</div>;
+}
+
+// ─── Modal ───────────────────────────────────────────────────────────────────
+function Modal({ onClose, children }) {
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">{children}</div>
+    </div>
+  );
+}
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <Modal onClose={onCancel}>
+      <div className="modal-title">Confirmar</div>
+      <p className="confirm-text">{message}</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
+        <button className="btn btn-danger" onClick={onConfirm}>Quitar</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Scryfall helpers (con paginación) ───────────────────────────────────────
+async function scryfallSearchAll(query) {
+  let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=cards`;
+  let out = [];
+  let guard = 0;
+  while (url && guard < 30) {
+    const r = await fetch(url);
+    if (!r.ok) break;
+    const d = await r.json();
+    out = out.concat(d.data || []);
+    url = d.has_more ? d.next_page : null;
+    guard++;
+  }
+  return out;
+}
+async function scryfallById(id) {
+  const r = await fetch(`https://api.scryfall.com/cards/${id}`);
+  if (!r.ok) return null;
+  return r.json();
+}
+function cardImageUri(card) {
+  if (!card) return null;
+  if (card.image_uris) return card.image_uris.normal;
+  if (card.card_faces) return card.card_faces[0]?.image_uris?.normal;
+  return null;
+}
+function ciKey(card) {
+  const ci = (card.color_identity || []).slice().sort((a,b) => 'WUBRG'.indexOf(a) - 'WUBRG'.indexOf(b));
+  return ci.length ? ci.join('') : 'C';
+}
+
+// ─── Configuración: 32 combinaciones de color ─────────────────────────────────
+const COLOR_COMBOS = [
+  { key: 'C',     ci: 'c',     name: 'Incoloro',    colors: [] },
+  { key: 'W',     ci: 'w',     name: 'Blanco',       colors: ['W'] },
+  { key: 'U',     ci: 'u',     name: 'Azul',         colors: ['U'] },
+  { key: 'B',     ci: 'b',     name: 'Negro',        colors: ['B'] },
+  { key: 'R',     ci: 'r',     name: 'Rojo',         colors: ['R'] },
+  { key: 'G',     ci: 'g',     name: 'Verde',        colors: ['G'] },
+  { key: 'WU',    ci: 'wu',    name: 'Azorius',      colors: ['W','U'] },
+  { key: 'UB',    ci: 'ub',    name: 'Dimir',        colors: ['U','B'] },
+  { key: 'BR',    ci: 'br',    name: 'Rakdos',       colors: ['B','R'] },
+  { key: 'RG',    ci: 'rg',    name: 'Gruul',        colors: ['R','G'] },
+  { key: 'GW',    ci: 'gw',    name: 'Selesnya',     colors: ['G','W'] },
+  { key: 'WB',    ci: 'wb',    name: 'Orzhov',       colors: ['W','B'] },
+  { key: 'UR',    ci: 'ur',    name: 'Izzet',        colors: ['U','R'] },
+  { key: 'BG',    ci: 'bg',    name: 'Golgari',      colors: ['B','G'] },
+  { key: 'RW',    ci: 'rw',    name: 'Boros',        colors: ['R','W'] },
+  { key: 'GU',    ci: 'gu',    name: 'Simic',        colors: ['G','U'] },
+  { key: 'WUB',   ci: 'wub',   name: 'Esper',        colors: ['W','U','B'] },
+  { key: 'UBR',   ci: 'ubr',   name: 'Grixis',       colors: ['U','B','R'] },
+  { key: 'BRG',   ci: 'brg',   name: 'Jund',         colors: ['B','R','G'] },
+  { key: 'RGW',   ci: 'rgw',   name: 'Naya',         colors: ['R','G','W'] },
+  { key: 'GWU',   ci: 'gwu',   name: 'Bant',         colors: ['G','W','U'] },
+  { key: 'WBG',   ci: 'wbg',   name: 'Abzan',        colors: ['W','B','G'] },
+  { key: 'URW',   ci: 'urw',   name: 'Jeskai',       colors: ['U','R','W'] },
+  { key: 'BGU',   ci: 'bgu',   name: 'Sultai',       colors: ['B','G','U'] },
+  { key: 'RWB',   ci: 'rwb',   name: 'Mardu',        colors: ['R','W','B'] },
+  { key: 'GUR',   ci: 'gur',   name: 'Temur',        colors: ['G','U','R'] },
+  { key: 'UBRG',  ci: 'ubrg',  name: 'Glint-Eye',    colors: ['U','B','R','G'] },
+  { key: 'WBRG',  ci: 'wbrg',  name: 'Dune-Brood',   colors: ['W','B','R','G'] },
+  { key: 'WURG',  ci: 'wurg',  name: 'Ink-Treader',  colors: ['W','U','R','G'] },
+  { key: 'WUBG',  ci: 'wubg',  name: 'Witch-Maw',    colors: ['W','U','B','G'] },
+  { key: 'WUBR',  ci: 'wubr',  name: 'Yore-Tiller',  colors: ['W','U','B','R'] },
+  { key: 'WUBRG', ci: 'wubrg', name: 'Cinco Colores',colors: ['W','U','B','R','G'] },
+];
+
+function comboQuery(ci) {
+  return `(f:commander is:commander -t:planeswalker -t:background -o:"choose a background" -o:partner -o:"doctor's companion" -t:"Time Lord Doctor" game:paper ci=${ci}) or (is:funny is:commander -t:planeswalker -t:background -o:"choose a background" -o:partner -o:"doctor's companion" -t:"Time Lord Doctor" game:paper ci=${ci} -b:da1 -b:ph22)`;
+}
+
+// ─── Configuración: Planeswalkers comandantes ─────────────────────────────────
+const PW_SUBGROUPS = [
+  { key: 'pw_transform', label: 'Transforman', query: 'o:"can be your commander" is:transform game:paper' },
+  { key: 'pw_text',      label: 'Texto "can be your commander"', query: 'o:"can be your commander" -is:dfc game:paper' },
+  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: 'o:"can be your commander" is:dfc -is:transform game:paper' },
+];
+
+// ─── Configuración: Comandantes en pareja ─────────────────────────────────────
+const PARTNER_SUBGROUPS = [
+  { key: 'pt_plain',    label: 'Partner (a secas)', query: 'is:commander o:"Partner" -o:"Partner with" -o:"Partner—" game:paper' },
+  { key: 'pt_variant',  label: 'Variantes (Friends forever, Survivors...)', query: 'is:commander o:"Partner—" game:paper' },
+  { key: 'pt_with',     label: '"Partner with" (pareja fija)', query: 'is:commander o:"partner with" game:paper' },
+  { key: 'pt_doctor',   label: 'Doctor / Doctor\'s companion', query: '(t:"Time Lord Doctor" or o:"doctor\'s companion") game:paper' },
+  { key: 'pt_background', label: 'Background / Choose a Background', query: '(t:background or o:"choose a background") game:paper' },
+];
+
+const ALL_REGISTER_MODULE_KEYS = [
+  ...COLOR_COMBOS.map(c => 'reg_' + c.key),
+  ...PW_SUBGROUPS.map(p => p.key),
+  ...PARTNER_SUBGROUPS.map(p => p.key),
+];
+
+// ─── Companions (11) — predicados de restricción sobre el comandante ─────────
+function manaSymbols(manaCost) {
+  return (manaCost || '').match(/\{[^}]+\}/g) || [];
+}
+function hasRepeatedColorSymbol(manaCost) {
+  const syms = manaSymbols(manaCost).filter(s => /[WUBRG]/.test(s));
+  const seen = new Set();
+  for (const s of syms) {
+    if (seen.has(s)) return true;
+    seen.add(s);
+  }
+  return false;
+}
+function zirdaFails(oracleText) {
+  // Aproximación: busca costos de activación de {0} o {1} generico sin costo adicional que sume 2+
+  if (!oracleText) return false;
+  const lines = oracleText.split('\n');
+  for (const line of lines) {
+    const m = line.match(/^\{([^}]+)\}(?:, \{[^}]+\})*: /);
+    if (!m) continue;
+    const costPart = line.split(':')[0];
+    const syms = manaSymbols(costPart);
+    let total = 0;
+    let hasTapOnly = syms.length === 1 && /\{T\}|\{Q\}/.test(syms[0]);
+    if (hasTapOnly) continue;
+    for (const s of syms) {
+      const n = parseInt(s.replace(/[{}]/g,''));
+      if (!isNaN(n)) total += n; else if (/[WUBRGC]/.test(s)) total += 1;
+    }
+    if (total > 0 && total < 2) return true;
+  }
+  return false;
+}
+
+const COMPANIONS = [
+  { key: 'lurrus', name: 'Lurrus of the Dream-Den', ci: 'wb',
+    restriction: 'Cada carta no-tierra cuesta 2 o menos',
+    test: c => (c.cmc ?? 0) <= 2 },
+  { key: 'obosh', name: 'Obosh, the Preypiercer', ci: 'br',
+    restriction: 'Costo de maná impar',
+    test: c => (c.cmc ?? 0) % 2 === 1 },
+  { key: 'gyruda', name: 'Gyruda, Doom of Depths', ci: 'ub',
+    restriction: 'Costo de maná par',
+    test: c => (c.cmc ?? 0) % 2 === 0 },
+  { key: 'jegantha', name: 'Jegantha, the Wellspring', ci: 'rw',
+    restriction: 'Sin símbolos de color repetidos en el costo',
+    test: c => !hasRepeatedColorSymbol(c.mana_cost || (c.card_faces && c.card_faces[0]?.mana_cost)) },
+  { key: 'kaheera', name: 'Kaheera, the Orphanguard', ci: 'gw',
+    restriction: 'Subtipo Cat / Elemental / Nightmare / Human / Beast',
+    test: c => /\b(Cat|Elemental|Nightmare|Human|Beast)\b/.test(c.type_line || '') },
+  { key: 'keruga', name: 'Keruga, the Macrosage', ci: 'gu',
+    restriction: 'Costo de maná 3 o más',
+    test: c => (c.cmc ?? 0) >= 3 },
+  { key: 'lutri', name: 'Lutri, the Spellchaser', ci: 'ur',
+    restriction: 'Sin restricción real en singleton (nombres únicos)',
+    test: () => true },
+  { key: 'umori', name: 'Umori, the Collector', ci: 'bg',
+    restriction: 'Todas las cartas comparten un tipo (normalmente Creature)',
+    test: c => /Creature/.test(c.type_line || '') },
+  { key: 'yorion', name: 'Yorion, Sky Nomad', ci: 'wu',
+    restriction: 'Mazo de 100+ cartas — siempre se cumple en Commander',
+    test: () => true },
+  { key: 'zirda', name: 'Zirda, the Dawnwaker', ci: 'rg',
+    restriction: 'Habilidades activadas cuestan {2}+ o son gratis',
+    test: c => !zirdaFails(c.oracle_text || (c.card_faces && c.card_faces.map(f=>f.oracle_text).join('\n'))) },
+  { key: 'lutri_po', name: 'Lutri, Pauper Otter', ci: 'ur',
+    restriction: 'Sin restricción real (misma que Lutri)',
+    test: () => true },
+];
+
+// ─── Generic register module storage helpers ─────────────────────────────────
+async function loadModuleEntries(moduleKey) {
+  const { data, error } = await sb.from('ch_cards').select('*').eq('module_key', moduleKey).order('position');
+  if (error) return { error };
+  const enriched = await Promise.all(data.map(async e => ({ ...e, cardData: await scryfallById(e.scryfall_id) })));
+  return { data: enriched };
+}
+
+async function refreshModuleFromScryfall(moduleKey, query, existingEntries, toast) {
+  let results;
+  try {
+    results = await scryfallSearchAll(query);
+  } catch (e) {
+    toast('Error consultando Scryfall', 'error');
+    return null;
+  }
+  const existingIds = new Set(existingEntries.map(e => e.scryfall_id));
+  const newCards = results.filter(c => !existingIds.has(c.id));
+  if (newCards.length === 0) { toast('Sin novedades — colección al día'); return existingEntries; }
+  const maxPos = existingEntries.reduce((m, e) => Math.max(m, e.position), -1);
+  const rows = newCards.map((c, i) => ({ module_key: moduleKey, scryfall_id: c.id, owned: false, position: maxPos + 1 + i }));
+  const { error } = await sb.from('ch_cards').upsert(rows, { onConflict: 'module_key,scryfall_id' });
+  if (error) { toast('Error guardando nuevas cartas', 'error'); return null; }
+  toast(`+${newCards.length} carta(s) nueva(s) agregadas como "no en colección"`);
+  const enrichedNew = newCards.map((c, i) => ({ ...rows[i], id: undefined, cardData: c }));
+  return [...existingEntries, ...enrichedNew];
+}
+
+// ─── Card grid item (registro) ────────────────────────────────────────────────
+function RegCardItem({ entry, onToggle, onRemove }) {
+  const img = entry.cardData ? cardImageUri(entry.cardData) : null;
+  return (
+    <div className={`card-item ${entry.owned ? 'owned' : 'missing'}`} onClick={() => onToggle(entry)} title={entry.cardData?.name}>
+      {img ? <img src={img} alt={entry.cardData?.name} loading="lazy" /> : <div className="card-placeholder">{entry.cardData?.name || '…'}</div>}
+      <div className="card-overlay" />
+      <div className="card-name-tooltip">{entry.cardData?.name}</div>
+      <button className="card-remove-btn" onClick={e => { e.stopPropagation(); onRemove(entry); }} title="Quitar del módulo">✕</button>
+    </div>
+  );
+}
+
+// ─── Módulo de registro genérico (colores puros / PW / Partner subgrupos) ────
+function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [confirm, setConfirm] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await loadModuleEntries(moduleKey);
+    if (error) { toast('Error al cargar', 'error'); setLoading(false); return; }
+    setEntries(data);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [moduleKey]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    const updated = await refreshModuleFromScryfall(moduleKey, query, entries, toast);
+    if (updated) setEntries(updated);
+    setRefreshing(false);
+  }
+
+  async function toggleOwned(entry) {
+    const newVal = !entry.owned;
+    const { error } = await sb.from('ch_cards').update({ owned: newVal }).eq('module_key', moduleKey).eq('scryfall_id', entry.scryfall_id);
+    if (error) { toast('Error al actualizar', 'error'); return; }
+    setEntries(es => es.map(e => e.scryfall_id === entry.scryfall_id ? { ...e, owned: newVal } : e));
+  }
+
+  async function removeEntry(entry) {
+    const { error } = await sb.from('ch_cards').delete().eq('module_key', moduleKey).eq('scryfall_id', entry.scryfall_id);
+    if (error) { toast('Error al quitar', 'error'); return; }
+    setEntries(es => es.filter(e => e.scryfall_id !== entry.scryfall_id));
+    toast('Carta quitada del módulo');
+  }
+
+  const owned = entries.filter(e => e.owned).length;
+
+  return (
+    <div>
+      <div className="list-view-header">
+        <div style={{flex:1}}>
+          <div className="list-view-title">{title}</div>
+          {subtitle && <div className="list-view-desc">{subtitle}</div>}
+          <div className="list-view-stats">{loading ? '—' : <><span className="owned-count">{owned}</span> / {entries.length} en colección</>}</div>
+        </div>
+        <div className="list-view-actions">
+          <button className="btn btn-gold" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? <><span className="loading-spinner"/> Consultando…</> : '🔄 Refrescar desde Scryfall'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : entries.length === 0 ? (
+        <div className="empty-state"><div className="icon">✦</div><p>Sin cartas todavía. Usa "Refrescar desde Scryfall" para poblar este módulo.</p></div>
+      ) : (
+        <div className="card-grid">
+          {entries.map(entry => (
+            <RegCardItem key={entry.scryfall_id} entry={entry} onToggle={toggleOwned} onRemove={e => setConfirm(e)} />
+          ))}
+        </div>
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          message={`¿Quitar "${confirm.cardData?.name || 'esta carta'}" de este módulo? (no borra tu progreso en otros módulos)`}
+          onConfirm={() => { removeEntry(confirm); setConfirm(null); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Módulo de registro con pestañas (Planeswalkers / Parejas) ───────────────
+function TabbedRegisterModule({ groups, title, toast }) {
+  const [active, setActive] = useState(groups[0].key);
+  const g = groups.find(x => x.key === active);
+  return (
+    <div>
+      <div className="page-title" style={{fontSize:'1.4rem'}}>{title}</div>
+      <div className="tabs" style={{marginTop:'0.8rem'}}>
+        {groups.map(gr => (
+          <div key={gr.key} className={`tab ${active === gr.key ? 'active' : ''}`} onClick={() => setActive(gr.key)}>{gr.label}</div>
+        ))}
+      </div>
+      <RegisterModule key={g.key} moduleKey={g.key} query={g.query} title={g.label} toast={toast} />
+    </div>
+  );
+}
+
+// ─── Unión de identidad de color (para parejas) ───────────────────────────────
+function unionCi(a, b) {
+  const set = new Set([...(a||[]), ...(b||[])]);
+  return 'WUBRG'.split('').filter(c => set.has(c)).join('') || 'C';
+}
+
+// ─── Módulo de consulta (32, solo lectura, agrega registro + PW + parejas) ───
+function QueryModule({ combo, toast }) {
+  const [loading, setLoading] = useState(true);
+  const [pool, setPool] = useState([]); // { cardData, sources: [labels] }
+  const [activeCompanions, setActiveCompanions] = useState(new Set());
+  const targetCi = combo.key === 'C' ? 'C' : combo.colors.join('');
+  const isMulti = combo.colors.length >= 2;
+  const applicableCompanions = useMemo(() => COMPANIONS.filter(co => {
+    // el companion debe caber en la identidad del combo (subset)
+    const coColors = co.ci.toUpperCase().split('');
+    return coColors.every(c => combo.colors.includes(c));
+  }), [combo]);
+
+  async function load() {
+    setLoading(true);
+    // 1. módulo de registro directo con ci exacto
+    const regKey = 'reg_' + combo.key;
+    const { data: regEntries } = await loadModuleEntries(regKey);
+    const direct = (regEntries || []).filter(e => e.owned && e.cardData).map(e => ({ cardData: e.cardData, sources: ['Registro directo'] }));
+
+    // 2. planeswalkers con ci coincidente
+    let pwCards = [];
+    for (const pw of PW_SUBGROUPS) {
+      const { data } = await loadModuleEntries(pw.key);
+      for (const e of (data || [])) {
+        if (e.owned && e.cardData && ciKey(e.cardData) === targetCi) {
+          pwCards.push({ cardData: e.cardData, sources: ['Planeswalker: ' + pw.label] });
+        }
+      }
+    }
+
+    // 3. parejas — cargar todos los pools de partner y combinar
+    const partnerPools = {};
+    for (const pt of PARTNER_SUBGROUPS) {
+      const { data } = await loadModuleEntries(pt.key);
+      partnerPools[pt.key] = (data || []).filter(e => e.owned && e.cardData);
+    }
+
+    let pairCards = [];
+    function tryPair(poolA, poolB, label, matchFn) {
+      for (const a of poolA) {
+        for (const b of poolB) {
+          if (a.scryfall_id === b.scryfall_id) continue;
+          if (matchFn && !matchFn(a, b)) continue;
+          const combinedCi = unionCi(a.cardData.color_identity, b.cardData.color_identity);
+          if (combinedCi === targetCi) {
+            pairCards.push({ cardData: a.cardData, sources: [`${label} + ${b.cardData.name}`] });
+          }
+        }
+      }
+    }
+    // Partner plain: cualquier pareja entre sí
+    tryPair(partnerPools.pt_plain, partnerPools.pt_plain, 'Partner');
+    // Variantes: cualquier pareja entre sí (aproximación — idealmente deberían compartir la misma etiqueta)
+    tryPair(partnerPools.pt_variant, partnerPools.pt_variant, 'Partner—variante');
+    // Partner with: emparejar solo si el oracle text de A menciona el nombre de B
+    tryPair(partnerPools.pt_with, partnerPools.pt_with, 'Partner with', (a, b) =>
+      (a.cardData.oracle_text || '').includes(b.cardData.name));
+    // Doctor + Companion: cualquier combinación cruzada
+    const doctors = partnerPools.pt_doctor.filter(e => (e.cardData.type_line||'').includes('Time Lord Doctor'));
+    const companions = partnerPools.pt_doctor.filter(e => (e.cardData.oracle_text||'').includes("doctor's companion"));
+    tryPair(doctors, companions, "Doctor's companion");
+    // Background + Choose a Background: cruzado
+    const backgrounds = partnerPools.pt_background.filter(e => (e.cardData.type_line||'').includes('Background'));
+    const chosers = partnerPools.pt_background.filter(e => (e.cardData.oracle_text||'').includes('choose a background'));
+    tryPair(chosers, backgrounds, 'Background');
+
+    // Combinar y dedup por scryfall id, uniendo fuentes
+    const map = new Map();
+    for (const item of [...direct, ...pwCards, ...pairCards]) {
+      const id = item.cardData.id;
+      if (map.has(id)) {
+        const existing = map.get(id);
+        existing.sources = [...new Set([...existing.sources, ...item.sources])];
+      } else {
+        map.set(id, { cardData: item.cardData, sources: [...item.sources] });
+      }
+    }
+    setPool([...map.values()].sort((a,b) => a.cardData.name.localeCompare(b.cardData.name)));
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [combo.key]);
+
+  function toggleCompanion(key) {
+    setActiveCompanions(s => {
+      const n = new Set(s);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  }
+
+  const filtered = pool.filter(item => {
+    for (const key of activeCompanions) {
+      const co = COMPANIONS.find(c => c.key === key);
+      if (co && !co.test(item.cardData)) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div>
+      <div className="list-view-header">
+        <div style={{flex:1}}>
+          <div className="list-view-title">{combo.name} — Consulta</div>
+          <div className="list-view-desc">Comandantes en tu colección con identidad {combo.colors.join('') || 'Incolora'}</div>
+          <div className="list-view-stats">{loading ? '—' : <>{filtered.length} de {pool.length} comandantes</>}</div>
+        </div>
+      </div>
+
+      {isMulti && applicableCompanions.length > 0 && (
+        <div className="companion-bar">
+          {applicableCompanions.map(co => (
+            <div key={co.key} className={`companion-chip ${activeCompanions.has(co.key) ? 'active' : ''}`}
+              onClick={() => toggleCompanion(co.key)} title={co.restriction}>
+              {co.name}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="empty-state"><div className="loading-spinner" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state"><div className="icon">✦</div><p>Ningún comandante de tu colección encaja aquí (todavía).</p></div>
+      ) : (
+        <div className="card-grid">
+          {filtered.map(item => {
+            const img = cardImageUri(item.cardData);
+            return (
+              <div key={item.cardData.id} className="card-item owned" title={item.sources.join(' · ')}>
+                {img ? <img src={img} alt={item.cardData.name} loading="lazy" /> : <div className="card-placeholder">{item.cardData.name}</div>}
+                <div className="card-overlay" />
+                <div className="card-src-badge">{item.sources.length > 1 ? `${item.sources.length} vías` : item.sources[0]}</div>
+                <div className="card-name-tooltip">{item.cardData.name}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Home ──────────────────────────────────────────────────────────────────
+function pipsFor(colors) {
+  if (!colors || colors.length === 0) return ['C'];
+  return colors;
+}
+
+function ComboTile({ combo, onClick, statLabel }) {
+  return (
+    <div className="tile" onClick={onClick}>
+      <div className="tile-pips">
+        {pipsFor(combo.colors).map((c,i) => <div key={i} className={`pip pip-${c}`}>{c}</div>)}
+      </div>
+      <div className="tile-name">{combo.name}</div>
+      <div className="tile-sub">{combo.colors.join('') || 'C'}</div>
+    </div>
+  );
+}
+
+function Home({ onOpenRegister, onOpenQuery }) {
+  return (
+    <div>
+      <div className="page-title">MTG Commander Hall</div>
+      <div className="page-subtitle">Explora y gestiona tu colección de posibles comandantes, hermana de Grimoire.</div>
+
+      <div className="section-heading">Registro — colores puros</div>
+      <div className="tiles-grid">
+        {COLOR_COMBOS.map(c => <ComboTile key={c.key} combo={c} onClick={() => onOpenRegister('color', c.key)} />)}
+      </div>
+
+      <div className="section-heading">Registro — casos especiales</div>
+      <div className="tiles-grid">
+        <div className="tile" onClick={() => onOpenRegister('pw')}>
+          <div className="tile-pips"><div className="pip" style={{background:'var(--accent)'}}>PW</div></div>
+          <div className="tile-name">Planeswalkers</div>
+          <div className="tile-sub">3 subgrupos</div>
+        </div>
+        <div className="tile" onClick={() => onOpenRegister('partner')}>
+          <div className="tile-pips"><div className="pip" style={{background:'var(--accent2)'}}>PT</div></div>
+          <div className="tile-name">Parejas</div>
+          <div className="tile-sub">5 subgrupos</div>
+        </div>
+      </div>
+
+      <div className="section-heading">Consulta — por identidad de color</div>
+      <div className="tiles-grid">
+        {COLOR_COMBOS.map(c => <ComboTile key={c.key} combo={c} onClick={() => onOpenQuery(c.key)} />)}
+      </div>
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [view, setView] = useState('home');
+  const [param, setParam] = useState(null);
+  const { toasts, add: toast } = useToasts();
+
+  function goHome() { setView('home'); setParam(null); }
+  function openRegister(kind, key) { setView('register'); setParam({ kind, key }); }
+  function openQuery(key) { setView('query'); setParam({ key }); }
+
+  let breadcrumbExtra = null;
+  let content = null;
+
+  if (view === 'home') {
+    content = <Home onOpenRegister={openRegister} onOpenQuery={openQuery} />;
+  } else if (view === 'register') {
+    if (param.kind === 'color') {
+      const combo = COLOR_COMBOS.find(c => c.key === param.key);
+      breadcrumbExtra = `Registro · ${combo.name}`;
+      content = <RegisterModule moduleKey={'reg_' + combo.key} query={comboQuery(combo.ci)} title={combo.name} subtitle={`Identidad de color: ${combo.colors.join('') || 'Incolora'}`} toast={toast} />;
+    } else if (param.kind === 'pw') {
+      breadcrumbExtra = 'Registro · Planeswalkers';
+      content = <TabbedRegisterModule groups={PW_SUBGROUPS} title="Planeswalkers comandantes" toast={toast} />;
+    } else if (param.kind === 'partner') {
+      breadcrumbExtra = 'Registro · Parejas';
+      content = <TabbedRegisterModule groups={PARTNER_SUBGROUPS} title="Comandantes en pareja" toast={toast} />;
+    }
+  } else if (view === 'query') {
+    const combo = COLOR_COMBOS.find(c => c.key === param.key);
+    breadcrumbExtra = `Consulta · ${combo.name}`;
+    content = <QueryModule combo={combo} toast={toast} />;
+  }
+
+  return (
+    <div className="app">
+      <header>
+        <div className="header-logo" onClick={goHome}>
+          Commander Hall
+          <span>MTG · Grimoire's Sister</span>
+        </div>
+        <div className="header-sep" />
+        <div className="breadcrumb">
+          <span className={`crumb ${view === 'home' ? 'crumb-active' : ''}`} onClick={goHome}>Inicio</span>
+          {breadcrumbExtra && <><span className="sep">›</span><span className="crumb-active">{breadcrumbExtra}</span></>}
+        </div>
+        {view !== 'home' && <button className="btn btn-ghost btn-sm" style={{marginLeft:'1rem'}} onClick={goHome}>← Volver</button>}
+      </header>
+      <main>{content}</main>
+      <ToastContainer toasts={toasts} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
