@@ -263,6 +263,19 @@
 
     .info-note { font-size: 0.78rem; color: var(--text-muted); font-style: italic; margin-bottom: 1rem; line-height: 1.5; }
 
+    .card-group { margin-bottom: 2.2rem; }
+    .card-group-header {
+      display: flex; align-items: center; gap: 0.8rem;
+      margin-bottom: 0.8rem; padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-group-name {
+      font-family: 'Cinzel', serif; font-size: 0.78rem; letter-spacing: 0.12em;
+      color: var(--gold); text-transform: uppercase;
+    }
+    .card-group-count { font-family: 'Cinzel', serif; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.08em; margin-left: auto; }
+    .card-group-owned { font-family: 'Cinzel', serif; font-size: 0.68rem; color: var(--owned); letter-spacing: 0.08em; }
+
     @media (max-width: 600px) {
       header { padding: 1rem; } main { padding: 1rem; }
       .list-view-title { font-size: 1.2rem; }
@@ -426,11 +439,12 @@ const PW_SUBGROUPS = [
 
 // ─── Configuración: Comandantes en pareja ─────────────────────────────────────
 const PARTNER_SUBGROUPS = [
-  { key: 'pt_plain',    label: 'Partner (a secas)', query: '(f:commander is:commander game:paper o:"Partner" -o:"Partner with" -o:"Partner—") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"Partner" -o:"Partner with" -o:"Partner—")' },
-  { key: 'pt_variant',  label: 'Variantes (Friends forever, Survivors...)', query: '(f:commander is:commander game:paper o:"Partner—") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"Partner—")' },
-  { key: 'pt_with',     label: '"Partner with" (pareja fija)', query: '(f:commander is:commander game:paper o:"partner with") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"partner with")' },
-  { key: 'pt_doctor',   label: 'Doctor / Doctor\'s companion', query: '(f:commander is:commander game:paper (t:"Time Lord Doctor" or o:"doctor\'s companion")) or (is:funny is:commander game:paper -b:da1 -b:ph22 (t:"Time Lord Doctor" or o:"doctor\'s companion"))' },
-  { key: 'pt_background', label: 'Background / Choose a Background', query: '(f:commander is:commander game:paper (t:background or o:"choose a background")) or (is:funny is:commander game:paper -b:da1 -b:ph22 (t:background or o:"choose a background"))' },
+  { key: 'pt_plain',    label: 'Partner (a secas)', query: '(f:commander is:commander game:paper o:"Partner" -o:"Partner with" -o:"Partner—") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"Partner" -o:"Partner with" -o:"Partner—")', grouping: { mode: 'color', within: 'mv' } },
+  { key: 'pt_variant',  label: 'Variantes (Friends forever, Survivors...)', query: '(f:commander is:commander game:paper o:"Partner—") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"Partner—")', grouping: { mode: 'variant', within: 'mv' } },
+  { key: 'pt_with',     label: '"Partner with" (pareja fija)', query: '(f:commander is:commander game:paper o:"partner with") or (is:funny is:commander game:paper -b:da1 -b:ph22 o:"partner with")', grouping: { mode: 'pair', within: 'name' } },
+  { key: 'pt_doctor',   label: 'Doctor / Doctor\'s companion', query: '(f:commander is:commander game:paper (t:"Time Lord Doctor" or o:"doctor\'s companion")) or (is:funny is:commander game:paper -b:da1 -b:ph22 (t:"Time Lord Doctor" or o:"doctor\'s companion"))', grouping: { mode: 'doctor', within: 'color' } },
+  { key: 'pt_background', label: 'Background / Choose a Background', query: '(f:commander is:commander game:paper (t:background or o:"choose a background")) or (is:funny is:commander game:paper -b:da1 -b:ph22 (t:background or o:"choose a background"))', grouping: { mode: 'background', within: 'color' } },
+  // { key: 'pt_meld',    label: 'Partner (a secas)', query: '(f:commander is:commander game:paper is:meld") or (is:funny is:commander game:paper is:meld)' },
 ];
 
 const ALL_REGISTER_MODULE_KEYS = [
@@ -556,6 +570,107 @@ async function refreshModuleFromScryfall(moduleKey, query, existingEntries, toas
 }
 
 // ─── Card grid item (registro) ────────────────────────────────────────────────
+// ─── Agrupamiento para módulos de registro ────────────────────────────────────
+const COLOR_ORDER = { W:0, U:1, B:2, R:3, G:4 };
+
+function colorIdentitySortValue(card) {
+  const ci = (card.color_identity || []).slice().sort((a,b) => COLOR_ORDER[a] - COLOR_ORDER[b]);
+  return String(ci.length) + '_' + ci.join('');
+}
+function sortByColorThenName(a, b) {
+  const av = colorIdentitySortValue(a.cardData), bv = colorIdentitySortValue(b.cardData);
+  return av.localeCompare(bv) || a.cardData.name.localeCompare(b.cardData.name);
+}
+function sortByMvThenName(a, b) {
+  return (a.cardData?.cmc ?? 0) - (b.cardData?.cmc ?? 0) || (a.cardData?.name || '').localeCompare(b.cardData?.name || '');
+}
+function sortByName(a, b) {
+  return (a.cardData?.name || '').localeCompare(b.cardData?.name || '');
+}
+
+function groupByMonoColor(card) {
+  const n = (card.color_identity || []).length;
+  if (n === 0) return { key: 'C', label: 'Incoloro', order: 6 };
+  if (n === 1) {
+    const c = card.color_identity[0];
+    const names = { W:'Blanco', U:'Azul', B:'Negro', R:'Rojo', G:'Verde' };
+    return { key: c, label: names[c], order: COLOR_ORDER[c] };
+  }
+  return { key: 'M', label: 'Multicolor', order: 5 };
+}
+
+function groupByVariant(card) {
+  const label = partnerVariantLabel(getOracleText(card));
+  if (!label) return { key: 'other', label: 'Otras variantes', order: 99 };
+  if (label === '__friends_forever__') return { key: label, label: 'Friends Forever', order: 0 };
+  const pretty = label.replace(/\b\w/g, ch => ch.toUpperCase());
+  return { key: label, label: 'Partner — ' + pretty, order: 1 };
+}
+
+function extractPartnerWithName(card) {
+  const ot = getOracleText(card);
+  const m = ot.match(/Partner with ([^\n(.]+)/i);
+  return m ? m[1].trim() : null;
+}
+function groupByPair(card) {
+  const partnerName = extractPartnerWithName(card);
+  const names = [card.name, partnerName || '?'].sort();
+  const key = names.join(' & ');
+  return { key, label: key, order: 0 };
+}
+
+function groupByDoctor(card) {
+  const isDoctor = (card.type_line || '').includes('Time Lord Doctor');
+  return isDoctor ? { key: 'doctor', label: 'Doctores', order: 0 } : { key: 'companion', label: "Doctor's Companions", order: 1 };
+}
+
+function groupByBackgroundType(card) {
+  const isBg = (card.type_line || '').includes('Background');
+  return isBg ? { key: 'background', label: 'Backgrounds (Encantamientos)', order: 1 } : { key: 'creature', label: 'Criaturas (Choose a Background)', order: 0 };
+}
+
+const GROUP_FNS = {
+  color: groupByMonoColor,
+  variant: groupByVariant,
+  pair: groupByPair,
+  doctor: groupByDoctor,
+  background: groupByBackgroundType,
+};
+const WITHIN_SORTERS = {
+  color: sortByColorThenName,
+  name: sortByName,
+  mv: sortByMvThenName,
+};
+
+function computeGroups(entries, grouping) {
+  const withCards = entries.filter(e => e.cardData);
+  if (!grouping) {
+    return [{ key: '__all__', label: null, entries: [...withCards].sort(sortByMvThenName) }];
+  }
+  const groupFn = GROUP_FNS[grouping.mode];
+  const within = WITHIN_SORTERS[grouping.within] || sortByMvThenName;
+  const map = new Map();
+  for (const e of withCards) {
+    const g = groupFn(e.cardData);
+    if (!map.has(g.key)) map.set(g.key, { key: g.key, label: g.label, order: g.order, entries: [] });
+    map.get(g.key).entries.push(e);
+  }
+  const groups = [...map.values()];
+  for (const g of groups) g.entries.sort(within);
+  if (grouping.mode === 'pair') {
+    for (const g of groups) {
+      g.releaseSort = g.entries.reduce((min, e) => {
+        const r = e.cardData.released_at || '9999';
+        return (min === undefined || r < min) ? r : min;
+      }, undefined);
+    }
+    groups.sort((a, b) => (a.releaseSort || '').localeCompare(b.releaseSort || ''));
+  } else {
+    groups.sort((a, b) => (a.order - b.order) || (a.label || '').localeCompare(b.label || ''));
+  }
+  return groups;
+}
+
 function RegCardItem({ entry, onToggle, onRemove }) {
   const img = entry.cardData ? cardImageUri(entry.cardData) : null;
   return (
@@ -569,7 +684,7 @@ function RegCardItem({ entry, onToggle, onRemove }) {
 }
 
 // ─── Módulo de registro genérico (colores puros / PW / Partner subgrupos) ────
-function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
+function RegisterModule({ moduleKey, query, title, subtitle, toast, grouping }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -579,8 +694,7 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
     setLoading(true);
     const { data, error } = await loadModuleEntries(moduleKey);
     if (error) { toast('Error al cargar', 'error'); setLoading(false); return; }
-    const sorted = [...data].sort((a, b) => (a.cardData?.cmc ?? 0) - (b.cardData?.cmc ?? 0) || (a.cardData?.name || '').localeCompare(b.cardData?.name || ''));
-    setEntries(sorted);
+    setEntries(data);
     setLoading(false);
   }
 
@@ -589,10 +703,7 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
   async function handleRefresh() {
     setRefreshing(true);
     const updated = await refreshModuleFromScryfall(moduleKey, query, entries, toast);
-    if (updated) {
-      const sorted = [...updated].sort((a, b) => (a.cardData?.cmc ?? 0) - (b.cardData?.cmc ?? 0) || (a.cardData?.name || '').localeCompare(b.cardData?.name || ''));
-      setEntries(sorted);
-    }
+    if (updated) setEntries(updated);
     setRefreshing(false);
   }
 
@@ -611,6 +722,7 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
   }
 
   const owned = entries.filter(e => e.owned).length;
+  const groups = useMemo(() => computeGroups(entries, grouping), [entries, grouping]);
 
   return (
     <div>
@@ -632,9 +744,22 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
       ) : entries.length === 0 ? (
         <div className="empty-state"><div className="icon">✦</div><p>Sin cartas todavía. Usa "Refrescar desde Scryfall" para poblar este módulo.</p></div>
       ) : (
-        <div className="card-grid">
-          {entries.map(entry => (
-            <RegCardItem key={entry.scryfall_id} entry={entry} onToggle={toggleOwned} onRemove={e => setConfirm(e)} />
+        <div>
+          {groups.map(g => (
+            <div key={g.key} className={grouping ? 'card-group' : ''}>
+              {grouping && g.label && (
+                <div className="card-group-header">
+                  <span className="card-group-name">{g.label}</span>
+                  <span className="card-group-owned">{g.entries.filter(e=>e.owned).length} en colección</span>
+                  <span className="card-group-count">{g.entries.length} cartas</span>
+                </div>
+              )}
+              <div className="card-grid">
+                {g.entries.map(entry => (
+                  <RegCardItem key={entry.scryfall_id} entry={entry} onToggle={toggleOwned} onRemove={e => setConfirm(e)} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -662,7 +787,7 @@ function TabbedRegisterModule({ groups, title, toast }) {
           <div key={gr.key} className={`tab ${active === gr.key ? 'active' : ''}`} onClick={() => setActive(gr.key)}>{gr.label}</div>
         ))}
       </div>
-      <RegisterModule key={g.key} moduleKey={g.key} query={g.query} title={g.label} toast={toast} />
+      <RegisterModule key={g.key} moduleKey={g.key} query={g.query} title={g.label} toast={toast} grouping={g.grouping} />
     </div>
   );
 }
