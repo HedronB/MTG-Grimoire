@@ -285,18 +285,25 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   global: { headers: { 'x-app-secret': '5223jace' } }
 });
 /*
-  Tabla requerida en Supabase (crear manualmente, misma RLS que Grimoire con header x-app-secret):
+  Tabla requerida en Supabase (RLS habilitado, policy con header x-app-secret: 5223jace):
 
   create table ch_cards (
     id uuid primary key default gen_random_uuid(),
     module_key text not null,
     scryfall_id text not null,
+    name text,
+    oracle_text text,
     owned boolean default false,
     position integer default 0,
     added_at timestamptz default now(),
     unique (module_key, scryfall_id)
   );
   create index idx_ch_cards_module on ch_cards(module_key);
+
+  alter table ch_cards enable row level security;
+  create policy "allow with app secret" on ch_cards for all
+    using ((current_setting('request.headers', true)::json ->> 'x-app-secret') = '5223jace')
+    with check ((current_setting('request.headers', true)::json ->> 'x-app-secret') = '5223jace');
 */
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -412,9 +419,9 @@ function comboQuery(ci) {
 
 // ─── Configuración: Planeswalkers comandantes ─────────────────────────────────
 const PW_SUBGROUPS = [
-  { key: 'pw_transform', label: 'Transforman', query: 'o:"can be your commander" is:transform game:paper' },
-  { key: 'pw_text',      label: 'Texto "can be your commander"', query: 'o:"can be your commander" -is:dfc game:paper' },
-  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: 'o:"can be your commander" is:dfc -is:transform game:paper' },
+  { key: 'pw_transform', label: 'Transforman', query: 'is:commander is:tdfc game:paper' },
+  { key: 'pw_text',      label: 'Texto "can be your commander"', query: 't:planeswalker is:commander -is:dfc game:paper' },
+  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: 'is:commander is:mdfc game:paper' },
 ];
 
 // ─── Configuración: Comandantes en pareja ─────────────────────────────────────
@@ -433,11 +440,18 @@ const ALL_REGISTER_MODULE_KEYS = [
 ];
 
 // ─── Companions (11) — predicados de restricción sobre el comandante ─────────
+function getOracleText(card) {
+  if (!card) return '';
+  if (card.oracle_text) return card.oracle_text;
+  if (card.card_faces) return card.card_faces.map(f => f.oracle_text || '').join('\n');
+  return '';
+}
 function manaSymbols(manaCost) {
   return (manaCost || '').match(/\{[^}]+\}/g) || [];
 }
-function hasRepeatedColorSymbol(manaCost) {
-  const syms = manaSymbols(manaCost).filter(s => /[WUBRG]/.test(s));
+function hasRepeatedColorSymbol(card) {
+  const cost = card.mana_cost || (card.card_faces && card.card_faces.map(f => f.mana_cost || '').join(''));
+  const syms = manaSymbols(cost).filter(s => /[WUBRG]/.test(s));
   const seen = new Set();
   for (const s of syms) {
     if (seen.has(s)) return true;
@@ -445,31 +459,27 @@ function hasRepeatedColorSymbol(manaCost) {
   }
   return false;
 }
-function zirdaFails(oracleText) {
-  // Aproximación: busca costos de activación de {0} o {1} generico sin costo adicional que sume 2+
-  if (!oracleText) return false;
-  const lines = oracleText.split('\n');
+function isPermanentType(typeLine) {
+  const tl = typeLine || '';
+  return !/Instant|Sorcery/.test(tl);
+}
+function hasActivatedAbility(oracleText) {
+  const lines = (oracleText || '').split('\n');
   for (const line of lines) {
-    const m = line.match(/^\{([^}]+)\}(?:, \{[^}]+\})*: /);
-    if (!m) continue;
-    const costPart = line.split(':')[0];
-    const syms = manaSymbols(costPart);
-    let total = 0;
-    let hasTapOnly = syms.length === 1 && /\{T\}|\{Q\}/.test(syms[0]);
-    if (hasTapOnly) continue;
-    for (const s of syms) {
-      const n = parseInt(s.replace(/[{}]/g,''));
-      if (!isNaN(n)) total += n; else if (/[WUBRGC]/.test(s)) total += 1;
-    }
-    if (total > 0 && total < 2) return true;
+    const idx = line.indexOf(':');
+    if (idx === -1) continue;
+    const before = line.slice(0, idx).trim();
+    if (/^(When|Whenever|At the beginning|As long as|If)\b/i.test(before)) continue;
+    if (before.length === 0) continue;
+    return true;
   }
   return false;
 }
 
 const COMPANIONS = [
   { key: 'lurrus', name: 'Lurrus of the Dream-Den', ci: 'wb',
-    restriction: 'Cada carta no-tierra cuesta 2 o menos',
-    test: c => (c.cmc ?? 0) <= 2 },
+    restriction: 'CMV ≤ 2, o no es permanente',
+    test: c => (c.cmc ?? 0) <= 2 || !isPermanentType(c.type_line) },
   { key: 'obosh', name: 'Obosh, the Preypiercer', ci: 'br',
     restriction: 'Costo de maná impar',
     test: c => (c.cmc ?? 0) % 2 === 1 },
@@ -478,28 +488,36 @@ const COMPANIONS = [
     test: c => (c.cmc ?? 0) % 2 === 0 },
   { key: 'jegantha', name: 'Jegantha, the Wellspring', ci: 'rw',
     restriction: 'Sin símbolos de color repetidos en el costo',
-    test: c => !hasRepeatedColorSymbol(c.mana_cost || (c.card_faces && c.card_faces[0]?.mana_cost)) },
+    test: c => !hasRepeatedColorSymbol(c) },
   { key: 'kaheera', name: 'Kaheera, the Orphanguard', ci: 'gw',
-    restriction: 'Subtipo Cat / Elemental / Nightmare / Human / Beast',
-    test: c => /\b(Cat|Elemental|Nightmare|Human|Beast)\b/.test(c.type_line || '') },
+    restriction: 'Creature — Cat/Elemental/Nightmare/Dinosaur/Beast, changeling, o "is every creature type"',
+    test: c => {
+      const tl = c.type_line || '';
+      if (!/Creature/.test(tl)) return false;
+      if (/\b(Cat|Elemental|Nightmare|Dinosaur|Beast)\b/.test(tl)) return true;
+      const ot = getOracleText(c);
+      if (/changeling/i.test(ot)) return true;
+      if (/is every creature type/i.test(ot)) return true;
+      return false;
+    } },
   { key: 'keruga', name: 'Keruga, the Macrosage', ci: 'gu',
-    restriction: 'Costo de maná 3 o más',
-    test: c => (c.cmc ?? 0) >= 3 },
+    restriction: 'CMV ≥ 3 y es permanente',
+    test: c => (c.cmc ?? 0) >= 3 && isPermanentType(c.type_line) },
   { key: 'lutri', name: 'Lutri, the Spellchaser', ci: 'ur',
-    restriction: 'Sin restricción real en singleton (nombres únicos)',
+    restriction: 'Sin restricción real en esta app',
     test: () => true },
   { key: 'umori', name: 'Umori, the Collector', ci: 'bg',
-    restriction: 'Todas las cartas comparten un tipo (normalmente Creature)',
-    test: c => /Creature/.test(c.type_line || '') },
+    restriction: 'Sin restricción real en esta app',
+    test: () => true },
   { key: 'yorion', name: 'Yorion, Sky Nomad', ci: 'wu',
-    restriction: 'Mazo de 100+ cartas — siempre se cumple en Commander',
+    restriction: 'Sólo válido en identidad WU',
     test: () => true },
   { key: 'zirda', name: 'Zirda, the Dawnwaker', ci: 'rg',
-    restriction: 'Habilidades activadas cuestan {2}+ o son gratis',
-    test: c => !zirdaFails(c.oracle_text || (c.card_faces && c.card_faces.map(f=>f.oracle_text).join('\n'))) },
+    restriction: 'Es permanente y tiene una habilidad activada',
+    test: c => isPermanentType(c.type_line) && hasActivatedAbility(getOracleText(c)) },
   { key: 'lutri_po', name: 'Lutri, Pauper Otter', ci: 'ur',
-    restriction: 'Sin restricción real (misma que Lutri)',
-    test: () => true },
+    restriction: 'Legal en formato Pauper',
+    test: c => (c.legalities && c.legalities.pauper === 'legal') },
 ];
 
 // ─── Generic register module storage helpers ─────────────────────────────────
@@ -522,7 +540,14 @@ async function refreshModuleFromScryfall(moduleKey, query, existingEntries, toas
   const newCards = results.filter(c => !existingIds.has(c.id));
   if (newCards.length === 0) { toast('Sin novedades — colección al día'); return existingEntries; }
   const maxPos = existingEntries.reduce((m, e) => Math.max(m, e.position), -1);
-  const rows = newCards.map((c, i) => ({ module_key: moduleKey, scryfall_id: c.id, owned: false, position: maxPos + 1 + i }));
+  const rows = newCards.map((c, i) => ({
+    module_key: moduleKey,
+    scryfall_id: c.id,
+    name: c.name,
+    oracle_text: getOracleText(c),
+    owned: false,
+    position: maxPos + 1 + i,
+  }));
   const { error } = await sb.from('ch_cards').upsert(rows, { onConflict: 'module_key,scryfall_id' });
   if (error) { toast('Error guardando nuevas cartas', 'error'); return null; }
   toast(`+${newCards.length} carta(s) nueva(s) agregadas como "no en colección"`);
@@ -554,7 +579,8 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
     setLoading(true);
     const { data, error } = await loadModuleEntries(moduleKey);
     if (error) { toast('Error al cargar', 'error'); setLoading(false); return; }
-    setEntries(data);
+    const sorted = [...data].sort((a, b) => (a.cardData?.cmc ?? 0) - (b.cardData?.cmc ?? 0) || (a.cardData?.name || '').localeCompare(b.cardData?.name || ''));
+    setEntries(sorted);
     setLoading(false);
   }
 
@@ -563,7 +589,10 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast }) {
   async function handleRefresh() {
     setRefreshing(true);
     const updated = await refreshModuleFromScryfall(moduleKey, query, entries, toast);
-    if (updated) setEntries(updated);
+    if (updated) {
+      const sorted = [...updated].sort((a, b) => (a.cardData?.cmc ?? 0) - (b.cardData?.cmc ?? 0) || (a.cardData?.name || '').localeCompare(b.cardData?.name || ''));
+      setEntries(sorted);
+    }
     setRefreshing(false);
   }
 
@@ -645,14 +674,47 @@ function unionCi(a, b) {
 }
 
 // ─── Módulo de consulta (32, solo lectura, agrega registro + PW + parejas) ───
+function partnerVariantLabel(text) {
+  const m = (text || '').match(/Partner\s*—\s*([^\n(]+)/i);
+  if (m) return m[1].trim().toLowerCase();
+  if (/Friends forever/i.test(text || '')) return '__friends_forever__';
+  return null;
+}
+
+function pairSortMv(pair) {
+  const a = pair.cardA.cmc ?? 0, b = pair.cardB.cmc ?? 0;
+  return Math.max(a, b);
+}
+
+// ─── Tile de pareja de comandantes (estilo EDHREC) ───────────────────────────
+function PairCardItem({ pair }) {
+  const imgA = cardImageUri(pair.cardA);
+  const imgB = cardImageUri(pair.cardB);
+  return (
+    <div className="card-item owned pair-item" title={pair.sources.join(' · ')}>
+      <div style={{display:'flex', width:'100%', height:'100%'}}>
+        <div style={{flex:1, overflow:'hidden', position:'relative', borderRight:'1px solid rgba(0,0,0,0.5)'}}>
+          {imgA ? <img src={imgA} alt={pair.cardA.name} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:'left'}} /> : <div className="card-placeholder">{pair.cardA.name}</div>}
+        </div>
+        <div style={{flex:1, overflow:'hidden', position:'relative'}}>
+          {imgB ? <img src={imgB} alt={pair.cardB.name} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:'right'}} /> : <div className="card-placeholder">{pair.cardB.name}</div>}
+        </div>
+      </div>
+      <div className="card-overlay" />
+      <div className="card-src-badge">{pair.sources.length > 1 ? `${pair.sources.length} vías` : pair.sources[0]}</div>
+      <div className="card-name-tooltip">{pair.cardA.name} // {pair.cardB.name}</div>
+    </div>
+  );
+}
+
 function QueryModule({ combo, toast }) {
   const [loading, setLoading] = useState(true);
-  const [pool, setPool] = useState([]); // { cardData, sources: [labels] }
+  const [singles, setSingles] = useState([]); // { cardData, sources: [labels] }
+  const [pairs, setPairs] = useState([]); // { cardA, cardB, sources: [labels] }
   const [activeCompanions, setActiveCompanions] = useState(new Set());
   const targetCi = combo.key === 'C' ? 'C' : combo.colors.join('');
   const isMulti = combo.colors.length >= 2;
   const applicableCompanions = useMemo(() => COMPANIONS.filter(co => {
-    // el companion debe caber en la identidad del combo (subset)
     const coColors = co.ci.toUpperCase().split('');
     return coColors.every(c => combo.colors.includes(c));
   }), [combo]);
@@ -675,54 +737,69 @@ function QueryModule({ combo, toast }) {
       }
     }
 
-    // 3. parejas — cargar todos los pools de partner y combinar
+    // 3. parejas — cargar todos los pools de partner
     const partnerPools = {};
     for (const pt of PARTNER_SUBGROUPS) {
       const { data } = await loadModuleEntries(pt.key);
       partnerPools[pt.key] = (data || []).filter(e => e.owned && e.cardData);
     }
 
-    let pairCards = [];
+    const pairMap = new Map(); // key -> { cardA, cardB, sources:Set }
+    function addPair(a, b, label) {
+      const ids = [a.scryfall_id, b.scryfall_id].sort();
+      const key = ids.join('|');
+      if (pairMap.has(key)) {
+        pairMap.get(key).sources.add(label);
+      } else {
+        pairMap.set(key, { cardA: a.cardData, cardB: b.cardData, sources: new Set([label]) });
+      }
+    }
     function tryPair(poolA, poolB, label, matchFn) {
       for (const a of poolA) {
         for (const b of poolB) {
           if (a.scryfall_id === b.scryfall_id) continue;
           if (matchFn && !matchFn(a, b)) continue;
           const combinedCi = unionCi(a.cardData.color_identity, b.cardData.color_identity);
-          if (combinedCi === targetCi) {
-            pairCards.push({ cardData: a.cardData, sources: [`${label} + ${b.cardData.name}`] });
-          }
+          if (combinedCi === targetCi) addPair(a, b, label);
         }
       }
     }
     // Partner plain: cualquier pareja entre sí
     tryPair(partnerPools.pt_plain, partnerPools.pt_plain, 'Partner');
-    // Variantes: cualquier pareja entre sí (aproximación — idealmente deberían compartir la misma etiqueta)
-    tryPair(partnerPools.pt_variant, partnerPools.pt_variant, 'Partner—variante');
-    // Partner with: emparejar solo si el oracle text de A menciona el nombre de B
+    // Variantes: sólo empareja si comparten la misma etiqueta ("Partner — X" exacto, o ambas Friends forever)
+    tryPair(partnerPools.pt_variant, partnerPools.pt_variant, 'Partner—variante', (a, b) => {
+      const la = partnerVariantLabel(getOracleText(a.cardData));
+      const lb = partnerVariantLabel(getOracleText(b.cardData));
+      return la && lb && la === lb;
+    });
+    // Partner with: emparejar solo si el oracle text de A menciona el nombre exacto de B
     tryPair(partnerPools.pt_with, partnerPools.pt_with, 'Partner with', (a, b) =>
-      (a.cardData.oracle_text || '').includes(b.cardData.name));
-    // Doctor + Companion: cualquier combinación cruzada
-    const doctors = partnerPools.pt_doctor.filter(e => (e.cardData.type_line||'').includes('Time Lord Doctor'));
-    const companions = partnerPools.pt_doctor.filter(e => (e.cardData.oracle_text||'').includes("doctor's companion"));
+      getOracleText(a.cardData).includes(b.cardData.name));
+    // Doctor + Companion: cruzado
+    const doctors = partnerPools.pt_doctor.filter(e => (e.cardData.type_line || '').includes('Time Lord Doctor'));
+    const companions = partnerPools.pt_doctor.filter(e => getOracleText(e.cardData).includes("doctor's companion"));
     tryPair(doctors, companions, "Doctor's companion");
     // Background + Choose a Background: cruzado
-    const backgrounds = partnerPools.pt_background.filter(e => (e.cardData.type_line||'').includes('Background'));
-    const chosers = partnerPools.pt_background.filter(e => (e.cardData.oracle_text||'').includes('choose a background'));
+    const backgrounds = partnerPools.pt_background.filter(e => (e.cardData.type_line || '').includes('Background'));
+    const chosers = partnerPools.pt_background.filter(e => getOracleText(e.cardData).includes('choose a background'));
     tryPair(chosers, backgrounds, 'Background');
 
-    // Combinar y dedup por scryfall id, uniendo fuentes
-    const map = new Map();
-    for (const item of [...direct, ...pwCards, ...pairCards]) {
+    // Combinar y dedup singles por scryfall id, uniendo fuentes
+    const singleMap = new Map();
+    for (const item of [...direct, ...pwCards]) {
       const id = item.cardData.id;
-      if (map.has(id)) {
-        const existing = map.get(id);
+      if (singleMap.has(id)) {
+        const existing = singleMap.get(id);
         existing.sources = [...new Set([...existing.sources, ...item.sources])];
       } else {
-        map.set(id, { cardData: item.cardData, sources: [...item.sources] });
+        singleMap.set(id, { cardData: item.cardData, sources: [...item.sources] });
       }
     }
-    setPool([...map.values()].sort((a,b) => a.cardData.name.localeCompare(b.cardData.name)));
+    const sortedSingles = [...singleMap.values()].sort((a, b) => (a.cardData.cmc ?? 0) - (b.cardData.cmc ?? 0) || a.cardData.name.localeCompare(b.cardData.name));
+    const sortedPairs = [...pairMap.values()].map(p => ({ ...p, sources: [...p.sources] })).sort((a, b) => pairSortMv(a) - pairSortMv(b) || a.cardA.name.localeCompare(b.cardA.name));
+
+    setSingles(sortedSingles);
+    setPairs(sortedPairs);
     setLoading(false);
   }
 
@@ -736,21 +813,26 @@ function QueryModule({ combo, toast }) {
     });
   }
 
-  const filtered = pool.filter(item => {
+  function passesCompanions(card) {
     for (const key of activeCompanions) {
       const co = COMPANIONS.find(c => c.key === key);
-      if (co && !co.test(item.cardData)) return false;
+      if (co && !co.test(card)) return false;
     }
     return true;
-  });
+  }
+
+  const filteredSingles = singles.filter(item => passesCompanions(item.cardData));
+  const filteredPairs = pairs.filter(p => passesCompanions(p.cardA) && passesCompanions(p.cardB));
+  const totalCount = singles.length + pairs.length;
+  const filteredCount = filteredSingles.length + filteredPairs.length;
 
   return (
     <div>
       <div className="list-view-header">
         <div style={{flex:1}}>
           <div className="list-view-title">{combo.name} — Consulta</div>
-          <div className="list-view-desc">Comandantes en tu colección con identidad {combo.colors.join('') || 'Incolora'}</div>
-          <div className="list-view-stats">{loading ? '—' : <>{filtered.length} de {pool.length} comandantes</>}</div>
+          <div className="list-view-desc">Comandantes en tu colección con identidad {combo.colors.join('') || 'Incolora'} · ordenado por MV</div>
+          <div className="list-view-stats">{loading ? '—' : <>{filteredCount} de {totalCount} comandantes</>}</div>
         </div>
       </div>
 
@@ -767,11 +849,11 @@ function QueryModule({ combo, toast }) {
 
       {loading ? (
         <div className="empty-state"><div className="loading-spinner" /></div>
-      ) : filtered.length === 0 ? (
+      ) : filteredCount === 0 ? (
         <div className="empty-state"><div className="icon">✦</div><p>Ningún comandante de tu colección encaja aquí (todavía).</p></div>
       ) : (
         <div className="card-grid">
-          {filtered.map(item => {
+          {filteredSingles.map(item => {
             const img = cardImageUri(item.cardData);
             return (
               <div key={item.cardData.id} className="card-item owned" title={item.sources.join(' · ')}>
@@ -782,6 +864,7 @@ function QueryModule({ combo, toast }) {
               </div>
             );
           })}
+          {filteredPairs.map(p => <PairCardItem key={p.cardA.id + '|' + p.cardB.id} pair={p} />)}
         </div>
       )}
     </div>
