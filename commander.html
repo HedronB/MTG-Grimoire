@@ -276,6 +276,28 @@
     .card-group-count { font-family: 'Cinzel', serif; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.08em; margin-left: auto; }
     .card-group-owned { font-family: 'Cinzel', serif; font-size: 0.68rem; color: var(--owned); letter-spacing: 0.08em; }
 
+    .subsection-label {
+      font-family: 'Cinzel', serif; font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-muted); margin: 1.1rem 0 0.6rem; opacity: 0.85;
+    }
+    .card-grid + .subsection-label { margin-top: 1.4rem; }
+
+    .query-section-heading {
+      font-family: 'Cinzel', serif; font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--gold-dim); margin: 1.8rem 0 0.9rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    }
+    .query-section-heading:first-child { margin-top: 0; }
+
+    .pair-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.1rem; }
+    .pair-block { position: relative; border-radius: 8px; overflow: hidden; background: var(--bg3); }
+    .pair-cards { display: flex; gap: 3px; }
+    .pair-cards .card-item { flex: 1; }
+    .pair-src-badge {
+      position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.72); border-radius: 4px; padding: 2px 7px; font-size: 0.56rem;
+      font-family: 'Cinzel', serif; letter-spacing: 0.03em; color: var(--gold-light); z-index: 4; pointer-events: none;
+    }
+
     @media (max-width: 600px) {
       header { padding: 1rem; } main { padding: 1rem; }
       .list-view-title { font-size: 1.2rem; }
@@ -378,6 +400,35 @@ async function scryfallById(id) {
   const r = await fetch(`https://api.scryfall.com/cards/${id}`);
   if (!r.ok) return null;
   return r.json();
+}
+
+// ─── Caché en memoria + fetch por lotes (evita N llamadas individuales) ──────
+const SCRYFALL_CACHE = new Map(); // scryfall_id -> card | null
+function primeScryfallCache(cards) {
+  for (const c of cards) if (c && c.id) SCRYFALL_CACHE.set(c.id, c);
+}
+async function scryfallGetCollection(ids) {
+  const uniqueIds = [...new Set(ids)];
+  const toFetch = uniqueIds.filter(id => !SCRYFALL_CACHE.has(id));
+  for (let i = 0; i < toFetch.length; i += 75) {
+    const chunk = toFetch.slice(i, i + 75);
+    try {
+      const r = await fetch('https://api.scryfall.com/cards/collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers: chunk.map(id => ({ id })) }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        for (const c of (d.data || [])) SCRYFALL_CACHE.set(c.id, c);
+      }
+    } catch (e) { /* seguimos con lo que se pudo cachear */ }
+    // marca lo que quedó sin resolver en este lote para no reintentar en el mismo render
+    for (const id of chunk) if (!SCRYFALL_CACHE.has(id)) SCRYFALL_CACHE.set(id, null);
+  }
+  const out = {};
+  for (const id of uniqueIds) out[id] = SCRYFALL_CACHE.get(id) || null;
+  return out;
 }
 function cardImageUri(card) {
   if (!card) return null;
@@ -538,7 +589,8 @@ const COMPANIONS = [
 async function loadModuleEntries(moduleKey) {
   const { data, error } = await sb.from('ch_cards').select('*').eq('module_key', moduleKey).order('position');
   if (error) return { error };
-  const enriched = await Promise.all(data.map(async e => ({ ...e, cardData: await scryfallById(e.scryfall_id) })));
+  const cardMap = await scryfallGetCollection(data.map(e => e.scryfall_id));
+  const enriched = data.map(e => ({ ...e, cardData: cardMap[e.scryfall_id] }));
   return { data: enriched };
 }
 
@@ -550,6 +602,7 @@ async function refreshModuleFromScryfall(moduleKey, query, existingEntries, toas
     toast('Error consultando Scryfall', 'error');
     return null;
   }
+  primeScryfallCache(results); // ya trajimos los datos completos en la búsqueda, no hace falta refetch
   const existingIds = new Set(existingEntries.map(e => e.scryfall_id));
   const newCards = results.filter(c => !existingIds.has(c.id));
   if (newCards.length === 0) { toast('Sin novedades — colección al día'); return existingEntries; }
@@ -755,10 +808,20 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast, grouping }) 
                 </div>
               )}
               <div className="card-grid">
-                {g.entries.map(entry => (
+                {g.entries.filter(e => e.owned).map(entry => (
                   <RegCardItem key={entry.scryfall_id} entry={entry} onToggle={toggleOwned} onRemove={e => setConfirm(e)} />
                 ))}
               </div>
+              {g.entries.some(e => !e.owned) && (
+                <>
+                  <div className="subsection-label">No en colección</div>
+                  <div className="card-grid">
+                    {g.entries.filter(e => !e.owned).map(entry => (
+                      <RegCardItem key={entry.scryfall_id} entry={entry} onToggle={toggleOwned} onRemove={e => setConfirm(e)} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -812,22 +875,24 @@ function pairSortMv(pair) {
 }
 
 // ─── Tile de pareja de comandantes (estilo EDHREC) ───────────────────────────
-function PairCardItem({ pair }) {
+function PairBlock({ pair }) {
   const imgA = cardImageUri(pair.cardA);
   const imgB = cardImageUri(pair.cardB);
   return (
-    <div className="card-item owned pair-item" title={pair.sources.join(' · ')}>
-      <div style={{display:'flex', width:'100%', height:'100%'}}>
-        <div style={{flex:1, overflow:'hidden', position:'relative', borderRight:'1px solid rgba(0,0,0,0.5)'}}>
-          {imgA ? <img src={imgA} alt={pair.cardA.name} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:'left'}} /> : <div className="card-placeholder">{pair.cardA.name}</div>}
+    <div className="pair-block" title={pair.sources.join(' · ')}>
+      <div className="pair-cards">
+        <div className="card-item owned">
+          {imgA ? <img src={imgA} alt={pair.cardA.name} loading="lazy" /> : <div className="card-placeholder">{pair.cardA.name}</div>}
+          <div className="card-overlay" />
+          <div className="card-name-tooltip">{pair.cardA.name}</div>
         </div>
-        <div style={{flex:1, overflow:'hidden', position:'relative'}}>
-          {imgB ? <img src={imgB} alt={pair.cardB.name} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:'right'}} /> : <div className="card-placeholder">{pair.cardB.name}</div>}
+        <div className="card-item owned">
+          {imgB ? <img src={imgB} alt={pair.cardB.name} loading="lazy" /> : <div className="card-placeholder">{pair.cardB.name}</div>}
+          <div className="card-overlay" />
+          <div className="card-name-tooltip">{pair.cardB.name}</div>
         </div>
       </div>
-      <div className="card-overlay" />
-      <div className="card-src-badge">{pair.sources.length > 1 ? `${pair.sources.length} vías` : pair.sources[0]}</div>
-      <div className="card-name-tooltip">{pair.cardA.name} // {pair.cardB.name}</div>
+      <div className="pair-src-badge">{pair.sources.length > 1 ? `${pair.sources.length} vías` : pair.sources[0]}</div>
     </div>
   );
 }
@@ -977,19 +1042,33 @@ function QueryModule({ combo, toast }) {
       ) : filteredCount === 0 ? (
         <div className="empty-state"><div className="icon">✦</div><p>Ningún comandante de tu colección encaja aquí (todavía).</p></div>
       ) : (
-        <div className="card-grid">
-          {filteredSingles.map(item => {
-            const img = cardImageUri(item.cardData);
-            return (
-              <div key={item.cardData.id} className="card-item owned" title={item.sources.join(' · ')}>
-                {img ? <img src={img} alt={item.cardData.name} loading="lazy" /> : <div className="card-placeholder">{item.cardData.name}</div>}
-                <div className="card-overlay" />
-                <div className="card-src-badge">{item.sources.length > 1 ? `${item.sources.length} vías` : item.sources[0]}</div>
-                <div className="card-name-tooltip">{item.cardData.name}</div>
+        <div>
+          {filteredSingles.length > 0 && (
+            <>
+              {filteredPairs.length > 0 && <div className="query-section-heading">Comandantes individuales</div>}
+              <div className="card-grid">
+                {filteredSingles.map(item => {
+                  const img = cardImageUri(item.cardData);
+                  return (
+                    <div key={item.cardData.id} className="card-item owned" title={item.sources.join(' · ')}>
+                      {img ? <img src={img} alt={item.cardData.name} loading="lazy" /> : <div className="card-placeholder">{item.cardData.name}</div>}
+                      <div className="card-overlay" />
+                      <div className="card-src-badge">{item.sources.length > 1 ? `${item.sources.length} vías` : item.sources[0]}</div>
+                      <div className="card-name-tooltip">{item.cardData.name}</div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-          {filteredPairs.map(p => <PairCardItem key={p.cardA.id + '|' + p.cardB.id} pair={p} />)}
+            </>
+          )}
+          {filteredPairs.length > 0 && (
+            <>
+              <div className="query-section-heading">Parejas</div>
+              <div className="pair-grid">
+                {filteredPairs.map(p => <PairBlock key={p.cardA.id + '|' + p.cardB.id} pair={p} />)}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
