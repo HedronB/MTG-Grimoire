@@ -483,9 +483,9 @@ function comboQuery(ci) {
 
 // ─── Configuración: Planeswalkers comandantes ─────────────────────────────────
 const PW_SUBGROUPS = [
-  { key: 'pw_transform', label: 'Transforman', query: '(f:commander is:commander t:planeswalker is:tdfc game:paper) or (is:funny is:commander t:planeswalker is:tdfc game:paper -b:da1 -b:ph22)' },
-  { key: 'pw_text',      label: 'Texto "can be your commander"', query: '(f:commander is:commander t:planeswalker -is:dfc game:paper) or (is:funny is:commander t:planeswalker -is:dfc game:paper -b:da1 -b:ph22)' },
-  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: '(f:commander is:commander t:planeswalker is:mdfc game:paper) or (is:funny is:commander t:planeswalker is:mdfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_transform', label: 'TDFC', query: '(f:commander is:commander t:planeswalker is:tdfc game:paper) or (is:funny is:commander t:planeswalker is:tdfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_text',      label: 'Native', query: '(f:commander is:commander t:planeswalker -is:dfc game:paper) or (is:funny is:commander t:planeswalker -is:dfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_dfc',       label: 'MDFC', query: '(f:commander is:commander t:planeswalker is:mdfc game:paper) or (is:funny is:commander t:planeswalker is:mdfc game:paper -b:da1 -b:ph22)' },
 ];
 
 // ─── Configuración: Comandantes en pareja ─────────────────────────────────────
@@ -918,7 +918,7 @@ function QueryModule({ combo, toast }) {
     // 1. módulo de registro directo con ci exacto
     const regKey = 'reg_' + combo.key;
     const { data: regEntries } = await loadModuleEntries(regKey);
-    const direct = (regEntries || []).filter(e => e.owned && e.cardData).map(e => ({ cardData: e.cardData, sources: ['Registro directo'] }));
+    const direct = (regEntries || []).filter(e => e.owned && e.cardData).map(e => ({ cardData: e.cardData, sources: ['🐾'] }));
 
     // 2. planeswalkers con ci coincidente
     let pwCards = [];
@@ -926,7 +926,7 @@ function QueryModule({ combo, toast }) {
       const { data } = await loadModuleEntries(pw.key);
       for (const e of (data || [])) {
         if (e.owned && e.cardData && ciKey(e.cardData) === targetCi) {
-          pwCards.push({ cardData: e.cardData, sources: ['Planeswalker: ' + pw.label] });
+          pwCards.push({ cardData: e.cardData, sources: ['✨'] });
         }
       }
     }
