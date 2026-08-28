@@ -856,6 +856,10 @@ function TabbedRegisterModule({ groups, title, toast }) {
 }
 
 // ─── Unión de identidad de color (para parejas) ───────────────────────────────
+function canonicalCi(colors) {
+  const set = new Set(colors || []);
+  return 'WUBRG'.split('').filter(c => set.has(c)).join('') || 'C';
+}
 function unionCi(a, b) {
   const set = new Set([...(a||[]), ...(b||[])]);
   return 'WUBRG'.split('').filter(c => set.has(c)).join('') || 'C';
@@ -902,7 +906,7 @@ function QueryModule({ combo, toast }) {
   const [singles, setSingles] = useState([]); // { cardData, sources: [labels] }
   const [pairs, setPairs] = useState([]); // { cardA, cardB, sources: [labels] }
   const [activeCompanions, setActiveCompanions] = useState(new Set());
-  const targetCi = combo.key === 'C' ? 'C' : combo.colors.join('');
+  const targetCi = canonicalCi(combo.colors);
   const isMulti = combo.colors.length >= 2;
   const applicableCompanions = useMemo(() => COMPANIONS.filter(co => {
     const coColors = co.ci.toUpperCase().split('');
@@ -967,11 +971,11 @@ function QueryModule({ combo, toast }) {
       getOracleText(a.cardData).includes(b.cardData.name));
     // Doctor + Companion: cruzado
     const doctors = partnerPools.pt_doctor.filter(e => (e.cardData.type_line || '').includes('Time Lord Doctor'));
-    const companions = partnerPools.pt_doctor.filter(e => getOracleText(e.cardData).includes("doctor's companion"));
+    const companions = partnerPools.pt_doctor.filter(e => /doctor's companion/i.test(getOracleText(e.cardData)));
     tryPair(doctors, companions, "Doctor's companion");
     // Background + Choose a Background: cruzado
     const backgrounds = partnerPools.pt_background.filter(e => (e.cardData.type_line || '').includes('Background'));
-    const chosers = partnerPools.pt_background.filter(e => getOracleText(e.cardData).includes('choose a background'));
+    const chosers = partnerPools.pt_background.filter(e => /choose a background/i.test(getOracleText(e.cardData)));
     tryPair(chosers, backgrounds, 'Background');
 
     // Combinar y dedup singles por scryfall id, uniendo fuentes
@@ -1021,7 +1025,7 @@ function QueryModule({ combo, toast }) {
       <div className="list-view-header">
         <div style={{flex:1}}>
           <div className="list-view-title">{combo.name} — Consulta</div>
-          <div className="list-view-desc">Comandantes en tu colección con identidad {combo.colors.join('') || 'Incolora'} · ordenado por MV</div>
+          <div className="list-view-desc">Comandantes en tu colección con identidad {canonicalCi(combo.colors) === 'C' ? 'Incolora' : canonicalCi(combo.colors)} · ordenado por MV</div>
           <div className="list-view-stats">{loading ? '—' : <>{filteredCount} de {totalCount} comandantes</>}</div>
         </div>
       </div>
@@ -1088,7 +1092,7 @@ function ComboTile({ combo, onClick, statLabel }) {
         {pipsFor(combo.colors).map((c,i) => <div key={i} className={`pip pip-${c}`}>{c}</div>)}
       </div>
       <div className="tile-name">{combo.name}</div>
-      <div className="tile-sub">{combo.colors.join('') || 'C'}</div>
+      <div className="tile-sub">{canonicalCi(combo.colors)}</div>
     </div>
   );
 }
@@ -1145,7 +1149,7 @@ function App() {
     if (param.kind === 'color') {
       const combo = COLOR_COMBOS.find(c => c.key === param.key);
       breadcrumbExtra = `Registro · ${combo.name}`;
-      content = <RegisterModule moduleKey={'reg_' + combo.key} query={comboQuery(combo.ci)} title={combo.name} subtitle={`Identidad de color: ${combo.colors.join('') || 'Incolora'}`} toast={toast} />;
+      content = <RegisterModule moduleKey={'reg_' + combo.key} query={comboQuery(combo.ci)} title={combo.name} subtitle={`Identidad de color: ${canonicalCi(combo.colors) === 'C' ? 'Incolora' : canonicalCi(combo.colors)}`} toast={toast} />;
     } else if (param.kind === 'pw') {
       breadcrumbExtra = 'Registro · Planeswalkers';
       content = <TabbedRegisterModule groups={PW_SUBGROUPS} title="Planeswalkers comandantes" toast={toast} />;
