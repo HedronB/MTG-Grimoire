@@ -2,9 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Commander Life — Contador de Vidas</title>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -13,32 +14,29 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
-  --bg: #0d0d0f;
-  --bg2: #13131a;
-  --bg3: #1a1a26;
-  --border: #2a2a3d;
-  --border-bright: #4a4a6a;
-  --gold: #c9a84c;
-  --gold-light: #e8c87a;
-  --gold-dim: #7a6030;
-  --text: #e8e4d8;
-  --text-dim: #8a8478;
-  --text-muted: #4a4840;
-  --accent: #7b4fc4;
-  --accent2: #4f86c4;
-  --red: #c44f4f;
-  --owned: #4fc47b;
-  --poison: #6fbf5a;
-  --life-glow: rgba(79,196,123,0.25);
+  --bg: #101f22;
+  --bg2: #17282c;
+  --bg3: #1e3338;
+  --border: #2c464b;
+  --border-bright: #3f5c62;
+  --teal-dark: #224248;
+  --teal: #325E6A;
+  --teal-light: #44A1A4;
+  --orange: #FF9A00;
+  --orange-dim: #a86400;
+  --text: #eaf5f4;
+  --text-dim: #92b3b3;
+  --text-muted: #517072;
+  --red: #ff6b5e;
+  --owned: #44A1A4;
 }
 
-html, body { height: 100%; overscroll-behavior: none; }
-
+html { background: var(--bg); height: 100%; }
 body {
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
-  font-family: 'Crimson Pro', Georgia, serif;
-  min-height: 100vh;
+  font-family: 'Josefin Sans', sans-serif;
+  min-height: 100%;
   overflow-x: hidden;
 }
 
@@ -46,17 +44,39 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+/* ═══ DAY / NIGHT BACKGROUND MOTIF ═══ */
+.bg-motif {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: background 1.1s ease, opacity 1.1s ease;
+}
+.bg-motif.none {
+  background: radial-gradient(ellipse at 50% -10%, rgba(68,161,164,0.10), transparent 55%);
+}
+.bg-motif.day {
+  background:
+    radial-gradient(ellipse at 50% -15%, rgba(255,154,0,0.32), transparent 55%),
+    linear-gradient(180deg, rgba(255,154,0,0.05), transparent 45%);
+}
+.bg-motif.night {
+  background:
+    radial-gradient(ellipse at 50% -15%, rgba(50,94,106,0.55), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Ccircle cx='24' cy='34' r='1.1' fill='white' opacity='0.55'/%3E%3Ccircle cx='88' cy='96' r='1.5' fill='white' opacity='0.35'/%3E%3Ccircle cx='160' cy='42' r='1.1' fill='white' opacity='0.5'/%3E%3Ccircle cx='188' cy='160' r='1.7' fill='white' opacity='0.3'/%3E%3Ccircle cx='60' cy='170' r='1.1' fill='white' opacity='0.45'/%3E%3Ccircle cx='120' cy='18' r='1.3' fill='white' opacity='0.4'/%3E%3Ccircle cx='200' cy='100' r='1' fill='white' opacity='0.4'/%3E%3Ccircle cx='30' cy='120' r='1.4' fill='white' opacity='0.3'/%3E%3C/svg%3E");
+}
 
-.app { min-height: 100vh; display: flex; flex-direction: column; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--teal); border-radius: 3px; }
+
+.app { min-height: 100vh; display: flex; flex-direction: column; position: relative; z-index: 1; }
 
 /* ═══ LANDING ═══ */
 .landing {
@@ -65,76 +85,73 @@ body::before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1.2rem;
+  padding: 1.8rem 1rem;
   text-align: center;
 }
-
 .landing-logo {
-  font-family: 'Cinzel Decorative', serif;
-  font-size: 2.2rem;
-  color: var(--gold);
-  text-shadow: 0 0 30px rgba(201,168,76,0.35);
+  font-family: 'Josefin Sans', sans-serif;
+  font-weight: 700;
+  font-size: 2rem;
+  color: var(--orange);
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 30px rgba(255,154,0,0.25);
   margin-bottom: 0.2rem;
 }
-
 .landing-sub {
-  font-family: 'Cinzel', serif;
-  font-size: 0.75rem;
-  letter-spacing: 0.25em;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-bottom: 2.6rem;
+  margin-bottom: 2.2rem;
+  font-weight: 300;
 }
-
 .landing-card {
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.6rem;
+  border-radius: 14px;
+  padding: 1.4rem;
   width: 100%;
   max-width: 380px;
-  margin-bottom: 1.2rem;
+  margin-bottom: 1rem;
   text-align: left;
 }
-
 .landing-card h3 {
-  font-family: 'Cinzel', serif;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   letter-spacing: 0.1em;
-  color: var(--gold);
-  margin-bottom: 1rem;
+  color: var(--teal-light);
+  margin-bottom: 0.9rem;
   text-transform: uppercase;
+  font-weight: 600;
 }
 
-.field { margin-bottom: 1rem; }
+.field { margin-bottom: 0.9rem; }
 .field label {
   display: block;
-  font-family: 'Cinzel', serif;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   letter-spacing: 0.1em;
   color: var(--text-dim);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.35rem;
   text-transform: uppercase;
 }
-.field input, .field select, .field textarea {
+.field input, .field select {
   width: 100%;
   background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
   color: var(--text);
-  font-family: 'Crimson Pro', serif;
+  font-family: 'Josefin Sans', sans-serif;
   font-size: 1.05rem;
   outline: none;
   transition: border-color 0.15s;
 }
-.field input:focus, .field select:focus { border-color: var(--gold-dim); }
+.field input:focus, .field select:focus { border-color: var(--teal-light); }
 .field input.code-input {
-  font-family: 'Cinzel', serif;
-  letter-spacing: 0.35em;
+  letter-spacing: 0.4em;
   text-transform: uppercase;
   text-align: center;
   font-size: 1.3rem;
+  font-weight: 600;
 }
 
 .btn {
@@ -142,56 +159,78 @@ body::before {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.65rem 1.1rem;
-  border-radius: 6px;
-  font-family: 'Cinzel', serif;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
+  padding: 0.75rem 1.1rem;
+  border-radius: 8px;
+  font-family: 'Josefin Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: all 0.15s;
   border: 1px solid;
   user-select: none;
 }
-.btn-gold {
-  background: linear-gradient(135deg, #3a2e10, #2a2010);
-  border-color: var(--gold-dim);
-  color: var(--gold-light);
-}
-.btn-gold:hover { background: linear-gradient(135deg, #4a3e18, #3a2e14); border-color: var(--gold); }
-.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-gold { background: linear-gradient(135deg, var(--orange), #e08a00); border-color: var(--orange); color: #1a1200; }
+.btn-gold:hover { filter: brightness(1.08); }
+.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
 .btn-ghost { background: transparent; border-color: var(--border-bright); color: var(--text-dim); }
-.btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
-.btn-danger { background: transparent; border-color: #5a2020; color: #c47a7a; }
+.btn-ghost:hover { border-color: var(--teal-light); color: var(--text); }
+.btn-danger { background: transparent; border-color: #5a2a24; color: #e08a7c; }
 .btn-danger:hover { border-color: var(--red); color: var(--red); }
 .btn-full { width: 100%; }
-.btn-sm { padding: 0.35rem 0.7rem; font-size: 0.7rem; }
+.btn-sm { padding: 0.45rem 0.8rem; font-size: 0.75rem; }
 
 .landing-error { color: var(--red); font-size: 0.85rem; margin-top: 0.5rem; }
 
-/* ═══ ROOM SHELL ═══ */
+/* ═══ ROOM HEADER ═══ */
 .room-header {
-  padding: 0.7rem 1rem;
+  padding: 0.55rem 0.6rem;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  background: linear-gradient(180deg, #16141f 0%, transparent 100%);
+  gap: 0.4rem;
+  background: rgba(16,31,34,0.75);
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(10px);
 }
 
 .room-code-badge {
-  font-family: 'Cinzel', serif;
-  font-size: 0.85rem;
-  letter-spacing: 0.2em;
-  color: var(--gold);
-  border: 1px solid var(--gold-dim);
-  border-radius: 6px;
-  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--orange);
+  border: 1px solid var(--orange-dim);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.header-toggles { display: flex; gap: 0.32rem; flex-shrink: 0; }
+
+.hdr-toggle {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.hdr-toggle.active { border-color: var(--orange); background: rgba(255,154,0,0.14); }
+.hdr-toggle-badge {
+  position: absolute; bottom: -4px; right: -4px;
+  background: var(--teal-light); color: #06181a;
+  font-size: 0.5rem; font-weight: 700;
+  width: 14px; height: 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--bg);
 }
 
 .room-header-sep { flex: 1; }
@@ -199,27 +238,25 @@ body::before {
 .icon-btn {
   background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  width: 34px; height: 34px;
+  border-radius: 9px;
+  width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-dim);
   cursor: pointer;
-  transition: all 0.15s;
   flex-shrink: 0;
 }
-.icon-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
-.icon-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
+.icon-btn:hover { border-color: var(--teal-light); color: var(--teal-light); }
 
 /* ═══ PLAYER TABS ═══ */
 .player-tabs {
   display: flex;
-  gap: 0.4rem;
-  padding: 0.6rem 0.8rem;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
   overflow-x: auto;
   scroll-snap-type: x proximity;
   border-bottom: 1px solid var(--border);
-  background: var(--bg2);
+  background: rgba(23,40,44,0.6);
 }
 .player-tabs::-webkit-scrollbar { display: none; }
 
@@ -228,34 +265,25 @@ body::before {
   scroll-snap-align: start;
   background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.4rem 0.7rem;
+  border-radius: 10px;
+  padding: 0.35rem 0.6rem;
   cursor: pointer;
-  min-width: 84px;
+  min-width: 74px;
   transition: all 0.15s;
 }
-.player-tab.active { border-color: var(--gold); background: rgba(201,168,76,0.07); }
+.player-tab.active { border-color: var(--orange); background: rgba(255,154,0,0.08); }
 .player-tab .pt-name {
-  font-family: 'Cinzel', serif;
-  font-size: 0.62rem;
-  letter-spacing: 0.06em;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
   color: var(--text-dim);
   text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 0.2rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 600;
 }
-.player-tab.active .pt-name { color: var(--gold); }
-.player-tab .pt-life {
-  font-family: 'Cinzel', serif;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text);
-}
-.pt-badge { font-size: 0.7rem; }
+.player-tab.active .pt-name { color: var(--orange); }
+.player-tab .pt-life { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.pt-badge { font-size: 0.65rem; }
 
 /* ═══ SWIPE VIEWPORT ═══ */
 .swipe-viewport {
@@ -266,167 +294,144 @@ body::before {
   scroll-behavior: smooth;
 }
 .swipe-viewport::-webkit-scrollbar { display: none; }
-
 .swipe-slide {
   flex: 0 0 100%;
   scroll-snap-align: start;
   min-width: 100%;
   display: flex;
   flex-direction: column;
-  padding: 1.2rem 1rem 2rem;
+  padding: 0.8rem 0.7rem 1.6rem;
 }
 
-/* ═══ MAIN LIFE DISPLAY (me) ═══ */
+/* ═══ COMMANDER ART ═══ */
+.cmdr-art-row { display: flex; gap: 0.5rem; margin-bottom: 0.7rem; }
+.cmdr-art-card {
+  position: relative;
+  flex: 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  aspect-ratio: 16/9;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: outline 0.1s;
+}
+.cmdr-art-row.two .cmdr-art-card { aspect-ratio: 4/3; }
+.cmdr-art-card.charging { outline: 3px solid var(--orange); outline-offset: -3px; }
+.cmdr-art-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cmdr-art-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 0.5rem 0.6rem;
+  background: linear-gradient(180deg, transparent 35%, rgba(8,16,18,0.88) 100%);
+}
+.cmdr-art-name {
+  font-weight: 600; font-size: 0.82rem; color: #fff;
+  text-shadow: 0 1px 5px rgba(0,0,0,0.8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cmdr-art-tax {
+  position: absolute; top: 0.4rem; right: 0.4rem;
+  background: rgba(8,16,18,0.72); border: 1px solid var(--orange); color: var(--orange);
+  font-weight: 700; font-size: 0.68rem;
+  padding: 0.15rem 0.5rem; border-radius: 20px;
+}
+.cmdr-art-card.empty {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 0.8rem;
+  border: 1px dashed var(--border-bright);
+}
+
+/* ═══ LIFE STAGE ═══ */
 .life-stage {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 46vh;
-  border-radius: 16px;
+  min-height: 34vh;
+  border-radius: 18px;
   position: relative;
   user-select: none;
   touch-action: manipulation;
+  overflow: hidden;
 }
-
 .life-number {
-  font-family: 'Cinzel', serif;
-  font-weight: 900;
-  font-size: clamp(4.5rem, 22vw, 8rem);
+  font-weight: 700;
+  font-size: clamp(4.2rem, 24vw, 7.5rem);
   line-height: 1;
   color: var(--text);
-  text-shadow: 0 0 60px var(--life-glow);
   transition: color 0.3s;
+  pointer-events: none;
 }
 .life-number.low { color: var(--red); }
 .life-number.crit { color: var(--red); animation: pulseCrit 1s infinite; }
-@keyframes pulseCrit { 0%,100%{opacity:1;} 50%{opacity:0.55;} }
-
+@keyframes pulseCrit { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
 .life-label {
-  font-family: 'Cinzel', serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 0.4rem;
-}
-
-.life-tap-zones {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  border-radius: 16px;
-  overflow: hidden;
-}
-.life-tap-zone {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 0.8rem;
-  font-family: 'Cinzel', serif;
-  font-size: 1.6rem;
-  color: transparent;
-  transition: background 0.1s;
-}
-.life-tap-zone:active { background: rgba(255,255,255,0.04); }
-.life-tap-zone.minus { color: rgba(196,79,79,0.0); }
-.life-tap-zone.plus { color: rgba(79,196,123,0.0); }
-
-.life-big-btn {
-  font-family: 'Cinzel', serif;
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-
-.life-step-row {
-  display: flex;
-  gap: 0.6rem;
-  margin-top: 1.2rem;
-}
-.step-btn {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.9rem;
-  font-family: 'Cinzel', serif;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-.step-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
-
-.opp-name {
-  font-family: 'Cinzel', serif;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
-  color: var(--gold);
   margin-bottom: 0.3rem;
-  text-align: center;
+  pointer-events: none;
+}
+.life-hint {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  letter-spacing: 0.05em;
+  pointer-events: none;
 }
 
-/* ═══ TOOLBAR (panel launchers) ═══ */
-.toolbar {
-  display: flex;
-  justify-content: center;
-  gap: 0.6rem;
-  margin-top: 1.4rem;
-  flex-wrap: wrap;
+.life-tap-zones { position: absolute; inset: 0; display: flex; }
+.life-tap-zone { flex: 1; }
+@keyframes chargeGreen {
+  from { background: radial-gradient(circle at 80% 50%, rgba(68,161,164,0), transparent 60%); }
+  to   { background: radial-gradient(circle at 80% 50%, rgba(68,161,164,0.4), transparent 60%); }
 }
+@keyframes chargeRed {
+  from { background: radial-gradient(circle at 20% 50%, rgba(255,107,94,0), transparent 60%); }
+  to   { background: radial-gradient(circle at 20% 50%, rgba(255,107,94,0.4), transparent 60%); }
+}
+.life-stage.charging-plus { animation: chargeGreen 0.42s linear forwards; }
+.life-stage.charging-minus { animation: chargeRed 0.42s linear forwards; }
+
+.opp-name { font-size: 1rem; font-weight: 600; letter-spacing: 0.04em; color: var(--orange); margin-bottom: 0.3rem; text-align: center; }
+
+/* ═══ TOOLBAR ═══ */
+.toolbar { display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 1rem; }
 .tool-btn {
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.55rem 0.7rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  min-width: 62px;
+  border-radius: 10px;
+  padding: 0.6rem 0.4rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  flex: 1;
   cursor: pointer;
   transition: all 0.15s;
 }
-.tool-btn:hover { border-color: var(--gold-dim); }
-.tool-btn .ti { font-size: 1.1rem; }
-.tool-btn .tl { font-family: 'Cinzel', serif; font-size: 0.55rem; letter-spacing: 0.05em; color: var(--text-dim); text-transform: uppercase; }
-.tool-btn .tv { font-family: 'Cinzel', serif; font-size: 0.68rem; color: var(--gold); }
+.tool-btn:hover { border-color: var(--teal-light); }
+.tool-btn .ti { font-size: 1.15rem; }
+.tool-btn .tl { font-size: 0.56rem; letter-spacing: 0.04em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; }
 
-/* status badges under opponent card */
-.status-row { display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap; margin-top:0.6rem; }
+/* status badges */
+.status-row { display: flex; gap: 0.35rem; justify-content: center; flex-wrap: wrap; margin-top: 0.55rem; }
 .status-chip {
-  font-family: 'Cinzel', serif;
-  font-size: 0.6rem;
-  letter-spacing: 0.05em;
-  padding: 0.25rem 0.5rem;
-  border-radius: 20px;
-  border: 1px solid var(--border-bright);
-  color: var(--text-dim);
+  font-size: 0.62rem; letter-spacing: 0.03em; font-weight: 600;
+  padding: 0.25rem 0.55rem; border-radius: 20px;
+  border: 1px solid var(--border-bright); color: var(--text-dim);
   display: flex; align-items: center; gap: 0.25rem;
 }
-.status-chip.on { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
-
-/* commander thumbnails row */
-.cmdr-row { display: flex; gap: 0.6rem; justify-content: center; margin-top: 0.8rem; flex-wrap: wrap; }
-.cmdr-chip {
-  display: flex; align-items: center; gap: 0.4rem;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 0.25rem 0.6rem 0.25rem 0.25rem;
-}
-.cmdr-chip img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
-.cmdr-chip .cn { font-family: 'Cinzel', serif; font-size: 0.65rem; color: var(--text-dim); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmdr-chip .ctax { font-family: 'Cinzel', serif; font-size: 0.6rem; color: var(--gold); }
+.status-chip.on { border-color: var(--orange); color: var(--orange); background: rgba(255,154,0,0.08); }
 
 /* ═══ MODAL / PANEL ═══ */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.78);
+  background: rgba(4,10,11,0.8);
   z-index: 500;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  display: flex; align-items: flex-end; justify-content: center;
   backdrop-filter: blur(4px);
   animation: fadeIn 0.15s ease;
 }
@@ -436,9 +441,9 @@ body::before {
 .panel {
   background: var(--bg2);
   border: 1px solid var(--border-bright);
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  padding: 1.4rem 1.2rem 2rem;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 1.3rem 1.1rem 2rem;
   width: 100%;
   max-width: 560px;
   max-height: 88vh;
@@ -447,241 +452,164 @@ body::before {
 }
 @media (min-width: 640px) {
   .modal-overlay { align-items: center; }
-  .panel { border-radius: 14px; }
+  .panel { border-radius: 16px; }
 }
 
 .panel-title {
-  font-family: 'Cinzel', serif;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--gold);
-  letter-spacing: 0.05em;
-  margin-bottom: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  font-size: 1rem; font-weight: 700; color: var(--orange);
+  letter-spacing: 0.03em; margin-bottom: 1.1rem;
+  display: flex; align-items: center; justify-content: space-between;
 }
 .panel-close { cursor: pointer; color: var(--text-dim); font-size: 1.1rem; }
 .panel-close:hover { color: var(--text); }
 
-.panel-section { margin-bottom: 1.4rem; }
+.panel-section { margin-bottom: 1.3rem; }
 .panel-section-title {
-  font-family: 'Cinzel', serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 0.6rem;
+  font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 0.55rem; font-weight: 600;
 }
 
-/* counter rows */
-.counter-row {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid var(--border);
-}
-.counter-row .cr-label { flex: 1; font-family: 'Cinzel', serif; font-size: 0.8rem; color: var(--text); display:flex; align-items:center; gap:0.4rem; }
-.counter-row .cr-val { font-family: 'Cinzel', serif; font-size: 1.15rem; color: var(--gold); min-width: 2.4rem; text-align: center; }
+.counter-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.counter-row .cr-label { flex: 1; font-size: 0.82rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; font-weight: 500; }
+.counter-row .cr-val { font-size: 1.1rem; font-weight: 700; color: var(--orange); min-width: 2.2rem; text-align: center; }
 .round-btn {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--border-bright);
-  background: var(--bg3);
-  color: var(--text);
-  font-size: 1rem;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--border-bright); background: var(--bg3); color: var(--text);
+  font-size: 1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.round-btn:hover { border-color: var(--gold); color: var(--gold); }
+.round-btn:hover { border-color: var(--orange); color: var(--orange); }
 .round-btn:active { transform: scale(0.92); }
 
 .custom-counter-add { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
 .custom-counter-add input { flex: 1; }
 
-/* toggle pills */
 .toggle-pill-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .toggle-pill {
-  border: 1px solid var(--border-bright);
-  border-radius: 20px;
-  padding: 0.5rem 0.9rem;
-  font-family: 'Cinzel', serif;
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: all 0.15s;
+  border: 1px solid var(--border-bright); border-radius: 20px;
+  padding: 0.55rem 0.9rem; font-size: 0.78rem; font-weight: 600;
+  color: var(--text-dim); cursor: pointer; transition: all 0.15s;
   display: flex; align-items: center; gap: 0.4rem;
 }
-.toggle-pill.on { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
-.toggle-pill:hover { border-color: var(--gold-dim); }
+.toggle-pill.on { border-color: var(--orange); color: var(--orange); background: rgba(255,154,0,0.1); }
+.toggle-pill:hover { border-color: var(--teal-light); }
 
 .holder-note { font-size: 0.75rem; color: var(--text-muted); font-style: italic; margin-top: 0.4rem; }
 
-/* mana pool grid */
-.mana-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.mana-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; }
 .mana-cell {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
 }
-.mana-symbol { font-size: 1.2rem; font-weight: bold; }
+.mana-symbol { font-size: 1.15rem; font-weight: 700; }
 .mana-symbol.W { color: #f0eacb; } .mana-symbol.U { color: #6fa8dc; } .mana-symbol.B { color: #9a8ca8; }
 .mana-symbol.R { color: #e07a5f; } .mana-symbol.G { color: #7ab86f; } .mana-symbol.C { color: #b8b8b8; }
-.mana-count { font-family: 'Cinzel', serif; font-size: 1rem; color: var(--text); }
+.mana-count { font-size: 1rem; color: var(--text); font-weight: 600; }
 .mana-btns { display: flex; gap: 0.3rem; }
 
-/* ring stage track */
-.ring-track { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
-.ring-dot {
-  flex: 1;
-  height: 26px;
-  border-radius: 6px;
-  border: 1px solid var(--border-bright);
-  background: var(--bg3);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Cinzel', serif;
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  cursor: pointer;
+.ring-stage-row {
+  display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.5rem;
+  border-radius: 10px; margin-bottom: 0.4rem; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg3); transition: all 0.15s;
 }
-.ring-dot.filled { background: linear-gradient(135deg,#3a2e10,#2a2010); border-color: var(--gold-dim); color: var(--gold); }
+.ring-stage-row.on { border-color: var(--orange); background: rgba(255,154,0,0.08); }
+.rsr-num {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; font-weight: 700;
+  background: var(--bg2); color: var(--text-dim); border: 1px solid var(--border-bright);
+}
+.ring-stage-row.on .rsr-num { background: var(--orange); color: #1a1200; border-color: var(--orange); }
+.rsr-text { font-size: 0.78rem; color: var(--text-dim); line-height: 1.35; }
+.ring-stage-row.on .rsr-text { color: var(--text); }
 
-/* commander search */
 .search-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
 .search-input-row input { flex: 1; }
 .cmdr-search-results {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.6rem;
-  max-height: 320px;
-  overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.55rem;
+  max-height: 320px; overflow-y: auto;
 }
 .cmdr-search-card {
-  cursor: pointer;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid transparent;
-  position: relative;
-  aspect-ratio: 5/2;
-  background: var(--bg3);
+  cursor: pointer; border-radius: 10px; overflow: hidden;
+  border: 2px solid transparent; position: relative; aspect-ratio: 5/2; background: var(--bg3);
 }
 .cmdr-search-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cmdr-search-card .csc-name {
-  position: absolute; bottom:0; left:0; right:0;
+  position: absolute; bottom: 0; left: 0; right: 0;
   background: linear-gradient(transparent, rgba(0,0,0,0.9));
-  padding: 1rem 0.4rem 0.3rem;
-  font-family: 'Cinzel', serif;
-  font-size: 0.62rem;
-  color: var(--text);
+  padding: 1rem 0.4rem 0.3rem; font-size: 0.62rem; color: var(--text);
 }
-.cmdr-search-card.selected { border-color: var(--gold); }
-.cmdr-search-card:hover { border-color: var(--gold-dim); }
+.cmdr-search-card.selected { border-color: var(--orange); }
+.cmdr-search-card:hover { border-color: var(--teal-light); }
 
-.chosen-cmdrs { display: flex; gap: 0.6rem; margin-bottom: 1rem; }
+.chosen-cmdrs { display: flex; gap: 0.55rem; margin-bottom: 1rem; }
 .chosen-cmdr-slot {
-  flex: 1;
-  aspect-ratio: 5/2;
-  border-radius: 8px;
-  border: 1px dashed var(--border-bright);
+  flex: 1; aspect-ratio: 5/2; border-radius: 10px; border: 1px dashed var(--border-bright);
   display: flex; align-items: center; justify-content: center;
-  color: var(--text-muted);
-  font-family: 'Cinzel', serif;
-  font-size: 0.65rem;
-  position: relative;
-  overflow: hidden;
-  background: var(--bg3);
+  color: var(--text-muted); font-size: 0.65rem; position: relative; overflow: hidden; background: var(--bg3);
 }
-.chosen-cmdr-slot img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.chosen-cmdr-slot .ccs-label { position: relative; z-index: 1; background: rgba(0,0,0,0.55); padding: 0.2rem 0.5rem; border-radius: 4px; }
+.chosen-cmdr-slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.chosen-cmdr-slot .ccs-label { position: relative; z-index: 1; background: rgba(0,0,0,0.6); padding: 0.2rem 0.5rem; border-radius: 5px; }
 .chosen-cmdr-slot .ccs-remove {
   position: absolute; top: 3px; right: 3px; z-index: 2;
   background: rgba(0,0,0,0.7); border: none; border-radius: 50%;
-  width: 20px; height: 20px; color: #c47a7a; font-size: 0.7rem;
+  width: 20px; height: 20px; color: #e08a7c; font-size: 0.7rem;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 
-/* commander damage grid */
-.cmg-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
-.cmg-row img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.cmg-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.cmg-row img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
 .cmg-row .cmg-info { flex: 1; min-width: 0; }
-.cmg-row .cmg-name { font-family: 'Cinzel', serif; font-size: 0.75rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmg-row .cmg-owner { font-size: 0.7rem; color: var(--text-muted); font-style: italic; }
-.cmg-row .cmg-val { font-family: 'Cinzel', serif; font-size: 1.1rem; color: var(--gold); min-width: 1.8rem; text-align: center; }
+.cmg-row .cmg-name { font-size: 0.76rem; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmg-row .cmg-owner { font-size: 0.68rem; color: var(--text-muted); font-style: italic; }
+.cmg-row .cmg-val { font-size: 1.05rem; font-weight: 700; color: var(--orange); min-width: 1.8rem; text-align: center; }
 .cmg-row.danger .cmg-val { color: var(--red); }
+.cmg-row.compact { padding: 0.35rem 0; }
+.cmg-row.compact img { width: 30px; height: 30px; }
 
 .loading-spinner {
-  display: inline-block;
-  width: 16px; height: 16px;
-  border: 2px solid var(--border-bright);
-  border-top-color: var(--gold);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid var(--border-bright); border-top-color: var(--orange);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.empty-note { color: var(--text-muted); font-style: italic; font-size: 0.85rem; text-align: center; padding: 1rem 0; }
+.empty-note { color: var(--text-muted); font-style: italic; font-size: 0.82rem; text-align: center; padding: 0.8rem 0; }
+
+.opp-detail-section { margin-top: 0.7rem; }
+.opp-detail-title { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.3rem; font-weight: 600; }
 
 .toast-container {
-  position: fixed; bottom: 1.2rem; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%);
   z-index: 9000; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
   width: calc(100% - 2rem); max-width: 420px; align-items: center;
 }
-.toast {
-  background: var(--bg2);
-  border: 1px solid var(--border-bright);
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-size: 0.82rem;
-  color: var(--text);
-  animation: slideUp 0.2s ease;
-}
+.toast { background: var(--bg2); border: 1px solid var(--border-bright); border-radius: 10px; padding: 0.6rem 1rem; font-size: 0.82rem; color: var(--text); animation: slideUp 0.2s ease; }
 .toast.error { border-color: var(--red); }
-.toast.success { border-color: var(--owned); }
-
-@media (max-width: 480px) {
-  .room-header { padding: 0.6rem 0.7rem; }
-  .swipe-slide { padding: 0.8rem 0.6rem 1.5rem; }
-}
+.toast.success { border-color: var(--teal-light); }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef, useMemo } = React;
+const { useState, useEffect, useCallback, useRef } = React;
 
-// ─── Supabase (mismo proyecto que Grimoire, tablas clt_*) ─────────────────
+// ─── Supabase (mismo proyecto que Grimoire, tablas clt_*, sin RLS por header) ──
 const SUPABASE_URL = 'https://zqhwcvommtjmbdtylyve.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_BkMOyjHirWBxgR-KzwdqtQ_bH8MzuI1';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  global: { headers: { 'x-app-secret': '5223jace' } }
-});
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── Session persistence ───────────────────────────────────────────────────
 const SESSION_KEY = 'clt_session_v1';
-function loadSession() {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
-}
+function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; } }
 function saveSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
 function clearSession() { localStorage.removeItem(SESSION_KEY); }
 
 // ─── Room code ──────────────────────────────────────────────────────────────
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin 0/O/1/I/L
-function genRoomCode() {
-  let s = '';
-  for (let i = 0; i < 6; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
-  return s;
-}
-function genClientId() {
-  return 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+function genRoomCode() { let s=''; for (let i=0;i<6;i++) s+=CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)]; return s; }
+function genClientId() { return 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
 // ─── Scryfall ───────────────────────────────────────────────────────────────
 async function scryfallCommanderSearch(q) {
@@ -699,25 +627,43 @@ function artCrop(card) {
   return null;
 }
 
+// ─── Short-press / long-press hook ──────────────────────────────────────────
+const HOLD_MS = 420;
+function usePressAction(onShort, onLong) {
+  const timer = useRef(null);
+  const fired = useRef(false);
+  function start(e) {
+    e.preventDefault();
+    fired.current = false;
+    timer.current = setTimeout(() => {
+      fired.current = true;
+      if (navigator.vibrate) try { navigator.vibrate(18); } catch {}
+      onLong();
+    }, HOLD_MS);
+  }
+  function end() {
+    clearTimeout(timer.current);
+    if (!fired.current) onShort();
+  }
+  function cancel() { clearTimeout(timer.current); }
+  return { onPointerDown: start, onPointerUp: end, onPointerLeave: cancel, onPointerCancel: cancel };
+}
+
 // ─── Toast ──────────────────────────────────────────────────────────────────
 function useToasts() {
   const [toasts, setToasts] = useState([]);
-  const add = useCallback((msg, type = 'success') => {
+  const add = useCallback((msg, type='success') => {
     const id = Date.now() + Math.random();
     setToasts(t => [...t, { id, msg, type }]);
-    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 2800);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 2600);
   }, []);
   return { toasts, add };
 }
 function ToastContainer({ toasts }) {
-  return (
-    <div className="toast-container">
-      {toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}
-    </div>
-  );
+  return <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}</div>;
 }
 
-// ─── Panel (bottom sheet modal) ─────────────────────────────────────────────
+// ─── Panel ──────────────────────────────────────────────────────────────────
 function Panel({ title, onClose, children }) {
   useEffect(() => {
     const h = e => { if (e.key === 'Escape') onClose(); };
@@ -730,6 +676,16 @@ function Panel({ title, onClose, children }) {
         <div className="panel-title">{title}<span className="panel-close" onClick={onClose}>✕</span></div>
         {children}
       </div>
+    </div>
+  );
+}
+
+// ─── Header toggle (emoji box) ──────────────────────────────────────────────
+function HeaderToggle({ emoji, active, holderInitial, onClick, title }) {
+  return (
+    <div className={`hdr-toggle ${active ? 'active' : ''}`} onClick={onClick} title={title}>
+      <span>{emoji}</span>
+      {holderInitial && !active && <span className="hdr-toggle-badge">{holderInitial}</span>}
     </div>
   );
 }
@@ -763,9 +719,7 @@ function Landing({ onEnter }) {
 
       saveSession({ roomId: room.id, roomCode: room.code, playerId: player.id, clientId });
       onEnter({ roomId: room.id, roomCode: room.code, playerId: player.id, clientId });
-    } catch (e) {
-      setErr('Error de conexión.');
-    }
+    } catch { setErr('Error de conexión.'); }
     setBusy(false);
   }
 
@@ -787,9 +741,7 @@ function Landing({ onEnter }) {
 
       saveSession({ roomId: room.id, roomCode: room.code, playerId: player.id, clientId });
       onEnter({ roomId: room.id, roomCode: room.code, playerId: player.id, clientId });
-    } catch (e) {
-      setErr('Error de conexión.');
-    }
+    } catch { setErr('Error de conexión.'); }
     setBusy(false);
   }
 
@@ -800,9 +752,7 @@ function Landing({ onEnter }) {
 
       <div className="landing-card">
         <h3>Tu nombre de jugador</h3>
-        <div className="field">
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="p.ej. Sara" maxLength={24} />
-        </div>
+        <div className="field"><input value={name} onChange={e => setName(e.target.value)} placeholder="p.ej. Sara" maxLength={24} /></div>
       </div>
 
       <div className="landing-card">
@@ -823,9 +773,7 @@ function Landing({ onEnter }) {
 
       <div className="landing-card">
         <h3>Unirse a una sala</h3>
-        <div className="field">
-          <input className="code-input" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="CÓDIGO" maxLength={6} />
-        </div>
+        <div className="field"><input className="code-input" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="CÓDIGO" maxLength={6} /></div>
         <button className="btn btn-ghost btn-full" onClick={joinRoom} disabled={busy}>
           {busy ? <span className="loading-spinner" /> : 'Unirme'}
         </button>
@@ -849,22 +797,12 @@ function CommanderPanel({ me, onSave, onClose }) {
     setResults(await scryfallCommanderSearch(q));
     setLoading(false);
   }
-
   function pick(card) {
-    if (chosen.length >= 2) return;
-    if (chosen.find(c => c.scryfall_id === card.id)) return;
-    setChosen(c => [...c, {
-      id: crypto.randomUUID(),
-      scryfall_id: card.id,
-      name: card.name,
-      image_url: artCrop(card),
-      times_cast: 0
-    }]);
+    if (chosen.length >= 2 || chosen.find(c => c.scryfall_id === card.id)) return;
+    setChosen(c => [...c, { id: crypto.randomUUID(), scryfall_id: card.id, name: card.name, image_url: artCrop(card), times_cast: 0 }]);
   }
   function removeChosen(id) { setChosen(c => c.filter(x => x.id !== id)); }
-  function bumpCast(id, delta) {
-    setChosen(c => c.map(x => x.id === id ? { ...x, times_cast: Math.max(0, x.times_cast + delta) } : x));
-  }
+  function bumpCast(id, delta) { setChosen(c => c.map(x => x.id === id ? { ...x, times_cast: Math.max(0, x.times_cast + delta) } : x)); }
 
   return (
     <Panel title="Comandante(s)" onClose={onClose}>
@@ -875,13 +813,8 @@ function CommanderPanel({ me, onSave, onClose }) {
             const c = chosen[i];
             return (
               <div key={i} className="chosen-cmdr-slot">
-                {c ? (
-                  <>
-                    {c.image_url && <img src={c.image_url} alt={c.name} />}
-                    <span className="ccs-label">{c.name}</span>
-                    <button className="ccs-remove" onClick={() => removeChosen(c.id)}>✕</button>
-                  </>
-                ) : <span>{i === 0 ? 'Comandante' : 'Compañero (opcional)'}</span>}
+                {c ? (<><img src={c.image_url} alt={c.name} /><span className="ccs-label">{c.name}</span><button className="ccs-remove" onClick={() => removeChosen(c.id)}>✕</button></>)
+                   : <span>{i === 0 ? 'Comandante' : 'Compañero (opcional)'}</span>}
               </div>
             );
           })}
@@ -900,9 +833,7 @@ function CommanderPanel({ me, onSave, onClose }) {
         <div className="panel-section-title">Buscar en Scryfall</div>
         <div className="search-input-row">
           <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSearch()} placeholder="Nombre del comandante…" autoFocus />
-          <button className="btn btn-gold btn-sm" onClick={doSearch} disabled={loading}>
-            {loading ? <span className="loading-spinner" /> : 'Buscar'}
-          </button>
+          <button className="btn btn-gold btn-sm" onClick={doSearch} disabled={loading}>{loading ? <span className="loading-spinner" /> : 'Buscar'}</button>
         </div>
         {results.length > 0 && (
           <div className="cmdr-search-results">
@@ -920,7 +851,7 @@ function CommanderPanel({ me, onSave, onClose }) {
         )}
       </div>
 
-      <div className="modal-actions" style={{display:'flex', justifyContent:'flex-end', gap:'0.6rem', marginTop:'1rem'}}>
+      <div style={{display:'flex', justifyContent:'flex-end', gap:'0.6rem', marginTop:'1rem'}}>
         <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
         <button className="btn btn-gold" onClick={() => { onSave(chosen); onClose(); }}>Guardar</button>
       </div>
@@ -928,49 +859,28 @@ function CommanderPanel({ me, onSave, onClose }) {
   );
 }
 
-// ─── Counters panel (poison/experience/energy/custom) ───────────────────────
-function CountersPanel({ me, onUpdate, onClose }) {
+// ─── Counters panel (poison/experience/energy/custom + storm) ───────────────
+function CountersPanel({ me, onUpdateCounters, onStormChange, onClose }) {
   const counters = me.counters || { poison: 0, experience: 0, energy: 0, custom: [] };
   const [customName, setCustomName] = useState('');
 
-  function bump(key, delta) {
-    onUpdate({ ...counters, [key]: Math.max(0, (counters[key] || 0) + delta) });
-  }
+  function bump(key, delta) { onUpdateCounters({ ...counters, [key]: Math.max(0, (counters[key] || 0) + delta) }); }
   function addCustom() {
     if (!customName.trim()) return;
-    onUpdate({ ...counters, custom: [...(counters.custom || []), { id: crypto.randomUUID(), name: customName.trim(), value: 0 }] });
+    onUpdateCounters({ ...counters, custom: [...(counters.custom || []), { id: crypto.randomUUID(), name: customName.trim(), value: 0 }] });
     setCustomName('');
   }
-  function bumpCustom(id, delta) {
-    onUpdate({ ...counters, custom: (counters.custom || []).map(c => c.id === id ? { ...c, value: Math.max(0, c.value + delta) } : c) });
-  }
-  function removeCustom(id) {
-    onUpdate({ ...counters, custom: (counters.custom || []).filter(c => c.id !== id) });
-  }
+  function bumpCustom(id, delta) { onUpdateCounters({ ...counters, custom: (counters.custom || []).map(c => c.id === id ? { ...c, value: Math.max(0, c.value + delta) } : c) }); }
+  function removeCustom(id) { onUpdateCounters({ ...counters, custom: (counters.custom || []).filter(c => c.id !== id) }); }
 
   return (
     <Panel title="Contadores" onClose={onClose}>
-      <div className="counter-row">
-        <div className="cr-label">☠ Veneno</div>
-        <button className="round-btn" onClick={() => bump('poison', -1)}>−</button>
-        <div className="cr-val">{counters.poison || 0}</div>
-        <button className="round-btn" onClick={() => bump('poison', 1)}>+</button>
-      </div>
-      <div className="counter-row">
-        <div className="cr-label">✦ Experiencia</div>
-        <button className="round-btn" onClick={() => bump('experience', -1)}>−</button>
-        <div className="cr-val">{counters.experience || 0}</div>
-        <button className="round-btn" onClick={() => bump('experience', 1)}>+</button>
-      </div>
-      <div className="counter-row">
-        <div className="cr-label">⚡ Energía</div>
-        <button className="round-btn" onClick={() => bump('energy', -1)}>−</button>
-        <div className="cr-val">{counters.energy || 0}</div>
-        <button className="round-btn" onClick={() => bump('energy', 1)}>+</button>
-      </div>
+      <div className="counter-row"><div className="cr-label">☠ Veneno</div><button className="round-btn" onClick={() => bump('poison', -1)}>−</button><div className="cr-val">{counters.poison || 0}</div><button className="round-btn" onClick={() => bump('poison', 1)}>+</button></div>
+      <div className="counter-row"><div className="cr-label">✦ Experiencia</div><button className="round-btn" onClick={() => bump('experience', -1)}>−</button><div className="cr-val">{counters.experience || 0}</div><button className="round-btn" onClick={() => bump('experience', 1)}>+</button></div>
+      <div className="counter-row"><div className="cr-label">⚡ Energía</div><button className="round-btn" onClick={() => bump('energy', -1)}>−</button><div className="cr-val">{counters.energy || 0}</div><button className="round-btn" onClick={() => bump('energy', 1)}>+</button></div>
 
       <div className="panel-section" style={{marginTop:'1rem'}}>
-        <div className="panel-section-title">Contadores personalizados</div>
+        <div className="panel-section-title">Personalizados</div>
         {(counters.custom || []).length === 0 && <div className="empty-note">Ninguno todavía</div>}
         {(counters.custom || []).map(c => (
           <div key={c.id} className="counter-row">
@@ -986,19 +896,23 @@ function CountersPanel({ me, onUpdate, onClose }) {
           <button className="btn btn-gold btn-sm" onClick={addCustom}>+ Añadir</button>
         </div>
       </div>
+
+      <div className="panel-section">
+        <div className="panel-section-title">🌀 Storm Count (se reinicia cada turno)</div>
+        <div className="counter-row" style={{border:'none'}}>
+          <div className="cr-label">Hechizos lanzados</div>
+          <button className="round-btn" onClick={() => onStormChange(Math.max(0, me.storm_count - 1))}>−</button>
+          <div className="cr-val">{me.storm_count}</div>
+          <button className="round-btn" onClick={() => onStormChange(me.storm_count + 1)}>+</button>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => onStormChange(0)}>Reiniciar</button>
+      </div>
     </Panel>
   );
 }
 
 // ─── Mana pool panel ──────────────────────────────────────────────────────
-const MANA_COLORS = [
-  { k: 'W', label: 'Blanco', sym: 'W' },
-  { k: 'U', label: 'Azul', sym: 'U' },
-  { k: 'B', label: 'Negro', sym: 'B' },
-  { k: 'R', label: 'Rojo', sym: 'R' },
-  { k: 'G', label: 'Verde', sym: 'G' },
-  { k: 'C', label: 'Incoloro', sym: 'C' },
-];
+const MANA_COLORS = [{k:'W',label:'Blanco'},{k:'U',label:'Azul'},{k:'B',label:'Negro'},{k:'R',label:'Rojo'},{k:'G',label:'Verde'},{k:'C',label:'Incoloro'}];
 function ManaPanel({ me, onUpdate, onClose }) {
   const pool = me.mana_pool || { W:0,U:0,B:0,R:0,G:0,C:0 };
   function bump(k, d) { onUpdate({ ...pool, [k]: Math.max(0, (pool[k]||0) + d) }); }
@@ -1008,7 +922,7 @@ function ManaPanel({ me, onUpdate, onClose }) {
       <div className="mana-grid">
         {MANA_COLORS.map(m => (
           <div key={m.k} className="mana-cell">
-            <div className={`mana-symbol ${m.k}`}>{m.sym}</div>
+            <div className={`mana-symbol ${m.k}`}>{m.k}</div>
             <div className="mana-count">{pool[m.k] || 0}</div>
             <div className="mana-btns">
               <button className="round-btn" style={{width:26,height:26}} onClick={() => bump(m.k, -1)}>−</button>
@@ -1022,97 +936,46 @@ function ManaPanel({ me, onUpdate, onClose }) {
   );
 }
 
-// ─── Extras panel: monarca, iniciativa, bendición, anillo, día/noche, storm ──
-function ExtrasPanel({ me, room, players, onClaimMonarch, onClaimInitiative, onClaimRing, onSetRingStage, onSetDayNight, onToggleBlessing, onStormChange, onClose }) {
-  const monarchName = players.find(p => p.id === room.monarch_player_id)?.name;
-  const initiativeName = players.find(p => p.id === room.initiative_player_id)?.name;
-  const ringName = players.find(p => p.id === room.ring_bearer_player_id)?.name;
-
+// ─── Ring panel ──────────────────────────────────────────────────────────
+const RING_STAGES = [
+  { n: 1, text: 'El portador no puede ser bloqueado por criaturas de mayor poder.' },
+  { n: 2, text: 'Al hacer daño de combate a un jugador, roba una carta y luego descarta una.' },
+  { n: 3, text: 'El portador obtiene +1/+1 y adquiere ward {2} (el atacante paga 2 vidas).' },
+  { n: 4, text: 'El portador se vuelve legendario.' },
+];
+function RingPanel({ me, room, players, onClaim, onSetStage, onClose }) {
+  const bearerName = players.find(p => p.id === room.ring_bearer_player_id)?.name;
   return (
-    <Panel title="Extras" onClose={onClose}>
-      <div className="panel-section">
-        <div className="panel-section-title">👑 Monarca</div>
-        <div className="toggle-pill-row">
-          <div className={`toggle-pill ${room.monarch_player_id === me.id ? 'on' : ''}`} onClick={onClaimMonarch}>
-            {room.monarch_player_id === me.id ? 'Eres el monarca' : 'Convertirte en monarca'}
-          </div>
+    <Panel title="El Anillo Único" onClose={onClose}>
+      <div className="toggle-pill-row" style={{marginBottom:'0.4rem'}}>
+        <div className={`toggle-pill ${room.ring_bearer_player_id === me.id ? 'on' : ''}`} onClick={onClaim}>
+          {room.ring_bearer_player_id === me.id ? 'Eres el portador 💍' : 'Tomar el anillo'}
         </div>
-        {monarchName && room.monarch_player_id !== me.id && <div className="holder-note">Actualmente: {monarchName}</div>}
       </div>
+      {bearerName && room.ring_bearer_player_id !== me.id && <div className="holder-note">Portador actual: {bearerName}</div>}
 
-      <div className="panel-section">
-        <div className="panel-section-title">⚔ Iniciativa</div>
-        <div className="toggle-pill-row">
-          <div className={`toggle-pill ${room.initiative_player_id === me.id ? 'on' : ''}`} onClick={onClaimInitiative}>
-            {room.initiative_player_id === me.id ? 'Tienes la iniciativa' : 'Tomar la iniciativa'}
-          </div>
+      <div className="panel-section-title" style={{marginTop:'1.1rem'}}>Nivel de tentación</div>
+      {RING_STAGES.map(s => (
+        <div key={s.n} className={`ring-stage-row ${room.ring_stage >= s.n ? 'on' : ''}`} onClick={() => onSetStage(room.ring_stage === s.n ? s.n - 1 : s.n)}>
+          <div className="rsr-num">{s.n}</div>
+          <div className="rsr-text">{s.text}</div>
         </div>
-        {initiativeName && room.initiative_player_id !== me.id && <div className="holder-note">Actualmente: {initiativeName}</div>}
-      </div>
-
-      <div className="panel-section">
-        <div className="panel-section-title">🏙 Bendición de la Ciudad</div>
-        <div className="toggle-pill-row">
-          <div className={`toggle-pill ${me.city_blessing ? 'on' : ''}`} onClick={onToggleBlessing}>
-            {me.city_blessing ? 'La tienes' : 'No la tienes (10+ permanentes)'}
-          </div>
-        </div>
-      </div>
-
-      <div className="panel-section">
-        <div className="panel-section-title">💍 El Anillo</div>
-        <div className="toggle-pill-row">
-          <div className={`toggle-pill ${room.ring_bearer_player_id === me.id ? 'on' : ''}`} onClick={onClaimRing}>
-            {room.ring_bearer_player_id === me.id ? 'Eres el portador' : 'Tomar el anillo'}
-          </div>
-        </div>
-        {ringName && room.ring_bearer_player_id !== me.id && <div className="holder-note">Portador actual: {ringName}</div>}
-        <div className="ring-track">
-          {[1,2,3,4].map(stage => (
-            <div key={stage} className={`ring-dot ${room.ring_stage >= stage ? 'filled' : ''}`} onClick={() => onSetRingStage(room.ring_stage === stage ? stage - 1 : stage)}>
-              {stage}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="panel-section">
-        <div className="panel-section-title">☀ / 🌙 Día y Noche</div>
-        <div className="toggle-pill-row">
-          <div className={`toggle-pill ${room.day_night === 'none' ? 'on' : ''}`} onClick={() => onSetDayNight('none')}>Ninguno</div>
-          <div className={`toggle-pill ${room.day_night === 'day' ? 'on' : ''}`} onClick={() => onSetDayNight('day')}>☀ Día</div>
-          <div className={`toggle-pill ${room.day_night === 'night' ? 'on' : ''}`} onClick={() => onSetDayNight('night')}>🌙 Noche</div>
-        </div>
-      </div>
-
-      <div className="panel-section">
-        <div className="panel-section-title">🌀 Storm Count (tuyo, se reinicia cada turno)</div>
-        <div className="counter-row" style={{border:'none'}}>
-          <div className="cr-label">Hechizos lanzados</div>
-          <button className="round-btn" onClick={() => onStormChange(Math.max(0, me.storm_count - 1))}>−</button>
-          <div className="cr-val">{me.storm_count}</div>
-          <button className="round-btn" onClick={() => onStormChange(me.storm_count + 1)}>+</button>
-        </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => onStormChange(0)}>Reiniciar</button>
-      </div>
+      ))}
     </Panel>
   );
 }
 
-// ─── Commander damage panel (daño recibido de cada comandante en la mesa) ──
+// ─── Commander damage panel (ligado a la vida total) ────────────────────────
 function CommanderDamagePanel({ me, players, onUpdate, onClose }) {
   const allCommanders = [];
-  for (const p of players) {
-    for (const c of (p.commanders || [])) {
-      allCommanders.push({ ...c, ownerName: p.name, ownerId: p.id });
-    }
-  }
+  for (const p of players) for (const c of (p.commanders || [])) allCommanders.push({ ...c, ownerName: p.name, ownerId: p.id });
   const dmg = me.commander_damage || {};
 
   function bump(cid, delta) {
     const cur = dmg[cid] || 0;
     const next = Math.max(0, cur + delta);
-    onUpdate({ ...dmg, [cid]: next });
+    const actualDelta = next - cur;
+    onUpdate({ commander_damage: { ...dmg, [cid]: next }, life: me.life - actualDelta });
   }
 
   return (
@@ -1133,81 +996,144 @@ function CommanderDamagePanel({ me, players, onUpdate, onClose }) {
           </div>
         );
       })}
-      {allCommanders.length > 0 && <div className="holder-note" style={{marginTop:'0.6rem'}}>21+ de un mismo comandante = derrota</div>}
+      {allCommanders.length > 0 && <div className="holder-note" style={{marginTop:'0.6rem'}}>21+ de un mismo comandante = derrota · cada cambio aquí también ajusta tu vida total</div>}
     </Panel>
   );
 }
 
-// ─── Player card (me: interactive / opponent: read-only) ───────────────────
-function PlayerLifeCard({ player, isMe, onLifeChange, roomStartLife, onOpenPanel }) {
-  const life = player.life;
-  const pct = Math.max(0, Math.min(1, life / (roomStartLife || 40)));
-  const lifeClass = life <= 0 ? 'crit' : life <= (roomStartLife || 40) * 0.25 ? 'low' : '';
-  const glow = life <= 0 ? 'rgba(196,79,79,0.3)' : `rgba(79,196,123,${0.12 + pct * 0.2})`;
+// ─── Commander art (grande, con press corto/largo) ──────────────────────────
+function CommanderArt({ commanders, interactive, onShortPress, onLongPress }) {
+  if (!commanders || commanders.length === 0) {
+    if (!interactive) return null;
+    return (
+      <div className="cmdr-art-row">
+        <div className="cmdr-art-card empty" onClick={onShortPress}>+ Elegir comandante</div>
+      </div>
+    );
+  }
+  return (
+    <div className={`cmdr-art-row ${commanders.length === 2 ? 'two' : ''}`}>
+      {commanders.map(c => <CommanderArtCard key={c.id} c={c} interactive={interactive} onShortPress={onShortPress} onLongPress={onLongPress} />)}
+    </div>
+  );
+}
+function CommanderArtCard({ c, interactive, onShortPress, onLongPress }) {
+  const [charging, setCharging] = useState(false);
+  const press = usePressAction(
+    () => { setCharging(false); onShortPress && onShortPress(); },
+    () => { setCharging(false); onLongPress && onLongPress(c); }
+  );
+  const handlers = interactive ? {
+    ...press,
+    onPointerDown: e => { setCharging(true); press.onPointerDown(e); },
+    onPointerUp: e => { setCharging(false); press.onPointerUp(e); },
+    onPointerLeave: e => { setCharging(false); press.onPointerLeave(e); },
+  } : {};
+  return (
+    <div className={`cmdr-art-card ${charging ? 'charging' : ''}`} {...handlers} title={c.name}>
+      {c.image_url ? <img src={c.image_url} alt={c.name} /> : null}
+      <div className="cmdr-art-overlay"><span className="cmdr-art-name">{c.name}</span></div>
+      <span className="cmdr-art-tax">↑{c.times_cast * 2}</span>
+    </div>
+  );
+}
 
-  const dmgTotal = Object.values(player.commander_damage || {}).reduce((a,b) => a + b, 0);
+// ─── Opponent detail (daño de comandante + contadores + toggles activos) ────
+function OpponentDetail({ player, room, players, me }) {
+  const dmg = player.commander_damage || {};
+  const dmgEntries = [];
+  for (const p of players) for (const c of (p.commanders || [])) {
+    const v = dmg[c.id] || 0;
+    if (v > 0) dmgEntries.push({ ...c, ownerName: p.name, ownerId: p.id, val: v });
+  }
   const counters = player.counters || {};
+  const hasMonarch = room.monarch_player_id === player.id;
+  const hasInitiative = room.initiative_player_id === player.id;
+  const hasRing = room.ring_bearer_player_id === player.id;
 
   return (
     <div>
-      {!isMe && <div className="opp-name">{player.name}</div>}
-      <div className="life-stage" style={{ '--life-glow': glow }}>
-        <div className="life-label">{isMe ? 'Tu vida' : 'Vida'}</div>
-        <div className={`life-number ${lifeClass}`}>{life}</div>
-        {isMe && (
-          <>
-            <div className="life-tap-zones">
-              <div className="life-tap-zone minus" onClick={() => onLifeChange(-1)}></div>
-              <div className="life-tap-zone plus" onClick={() => onLifeChange(1)}></div>
-            </div>
-            <div className="life-step-row">
-              <button className="step-btn" onClick={() => onLifeChange(-5)}>−5</button>
-              <button className="step-btn" onClick={() => onLifeChange(-1)}>−1</button>
-              <button className="step-btn" onClick={() => onLifeChange(1)}>+1</button>
-              <button className="step-btn" onClick={() => onLifeChange(5)}>+5</button>
-            </div>
-          </>
-        )}
+      <div className="status-row">
+        {hasMonarch && <div className="status-chip on">👑 Monarca</div>}
+        {hasInitiative && <div className="status-chip on">⚔ Iniciativa</div>}
+        {hasRing && <div className="status-chip on">💍 Portador</div>}
+        {player.city_blessing && <div className="status-chip on">🏙 Bendición</div>}
+        {(counters.poison || 0) > 0 && <div className="status-chip on">☠ {counters.poison}</div>}
+        {(counters.experience || 0) > 0 && <div className="status-chip on">✦ {counters.experience}</div>}
+        {(counters.energy || 0) > 0 && <div className="status-chip on">⚡ {counters.energy}</div>}
+        {(counters.custom || []).filter(c => c.value > 0).map(c => <div key={c.id} className="status-chip on">{c.name} {c.value}</div>)}
       </div>
 
-      {(player.commanders || []).length > 0 && (
-        <div className="cmdr-row">
-          {player.commanders.map(c => (
-            <div key={c.id} className="cmdr-chip">
+      {dmgEntries.length > 0 && (
+        <div className="opp-detail-section">
+          <div className="opp-detail-title">Daño de comandante recibido</div>
+          {dmgEntries.map(c => (
+            <div key={c.id} className={`cmg-row compact ${c.val >= 21 ? 'danger' : ''}`}>
               {c.image_url && <img src={c.image_url} alt={c.name} />}
-              <span className="cn">{c.name}</span>
-              <span className="ctax">↑{c.times_cast * 2}</span>
+              <div className="cmg-info">
+                <div className="cmg-name">{c.name}</div>
+                <div className="cmg-owner">de {c.ownerId === player.id ? 'sí mismo' : c.ownerName}</div>
+              </div>
+              <div className="cmg-val">{c.val}</div>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      <div className="status-row">
-        {dmgTotal > 0 && <div className="status-chip on">⚔ {dmgTotal} daño cmd</div>}
-        {(counters.poison || 0) > 0 && <div className="status-chip on">☠ {counters.poison}</div>}
-        {(counters.experience || 0) > 0 && <div className="status-chip on">✦ {counters.experience}</div>}
-        {(counters.energy || 0) > 0 && <div className="status-chip on">⚡ {counters.energy}</div>}
-        {player.city_blessing && <div className="status-chip on">🏙 Bendición</div>}
+// ─── Player slide ────────────────────────────────────────────────────────
+function PlayerSlide({ player, isMe, roomStartLife, room, players, me, onLifeChange, onOpenPanel, onBumpCast }) {
+  const life = player.life;
+  const lifeClass = life <= 0 ? 'crit' : life <= (roomStartLife || 40) * 0.25 ? 'low' : '';
+  const [charging, setCharging] = useState(null); // 'plus' | 'minus' | null
+
+  const minusPress = usePressAction(() => onLifeChange(-1), () => onLifeChange(-5));
+  const plusPress = usePressAction(() => onLifeChange(1), () => onLifeChange(5));
+
+  return (
+    <div>
+      {!isMe && <div className="opp-name">{player.name}</div>}
+
+      <CommanderArt
+        commanders={player.commanders}
+        interactive={isMe}
+        onShortPress={() => onOpenPanel && onOpenPanel('commanders')}
+        onLongPress={c => onBumpCast && onBumpCast(c)}
+      />
+
+      <div className={`life-stage ${charging === 'plus' ? 'charging-plus' : charging === 'minus' ? 'charging-minus' : ''}`}>
+        <div className="life-label">{isMe ? 'Tu vida' : 'Vida'}</div>
+        <div className={`life-number ${lifeClass}`}>{life}</div>
+        {isMe && <div className="life-hint">toque = ±1 · mantener = ±5</div>}
+        {isMe && (
+          <div className="life-tap-zones">
+            <div className="life-tap-zone"
+              onPointerDown={e => { setCharging('minus'); minusPress.onPointerDown(e); }}
+              onPointerUp={e => { setCharging(null); minusPress.onPointerUp(e); }}
+              onPointerLeave={e => { setCharging(null); minusPress.onPointerLeave(e); }}
+              onPointerCancel={e => { setCharging(null); minusPress.onPointerCancel(e); }}
+            />
+            <div className="life-tap-zone"
+              onPointerDown={e => { setCharging('plus'); plusPress.onPointerDown(e); }}
+              onPointerUp={e => { setCharging(null); plusPress.onPointerUp(e); }}
+              onPointerLeave={e => { setCharging(null); plusPress.onPointerLeave(e); }}
+              onPointerCancel={e => { setCharging(null); plusPress.onPointerCancel(e); }}
+            />
+          </div>
+        )}
       </div>
 
-      {isMe && (
+      {isMe ? (
         <div className="toolbar">
-          <div className="tool-btn" onClick={() => onOpenPanel('commanders')}>
-            <div className="ti">⚔</div><div className="tl">Comandante</div>
-          </div>
-          <div className="tool-btn" onClick={() => onOpenPanel('cmg')}>
-            <div className="ti">🗡</div><div className="tl">Daño Cmd</div>
-          </div>
-          <div className="tool-btn" onClick={() => onOpenPanel('counters')}>
-            <div className="ti">☠</div><div className="tl">Contadores</div>
-          </div>
-          <div className="tool-btn" onClick={() => onOpenPanel('mana')}>
-            <div className="ti">💧</div><div className="tl">Maná</div>
-          </div>
-          <div className="tool-btn" onClick={() => onOpenPanel('extras')}>
-            <div className="ti">👑</div><div className="tl">Extras</div>
-          </div>
+          <div className="tool-btn" onClick={() => onOpenPanel('commanders')}><div className="ti">⚔</div><div className="tl">Comandante</div></div>
+          <div className="tool-btn" onClick={() => onOpenPanel('cmg')}><div className="ti">🗡</div><div className="tl">Daño Cmd</div></div>
+          <div className="tool-btn" onClick={() => onOpenPanel('counters')}><div className="ti">☠</div><div className="tl">Contadores</div></div>
+          <div className="tool-btn" onClick={() => onOpenPanel('mana')}><div className="ti">💧</div><div className="tl">Maná</div></div>
         </div>
+      ) : (
+        <OpponentDetail player={player} room={room} players={players} me={me} />
       )}
     </div>
   );
@@ -1219,11 +1145,8 @@ function Room({ session, onLeave, toast }) {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeIdx, setActiveIdx] = useState(0);
-  const [openPanel, setOpenPanel] = useState(null); // 'commanders'|'cmg'|'counters'|'mana'|'extras'
+  const [openPanel, setOpenPanel] = useState(null);
   const viewportRef = useRef(null);
-
-  const roomRef = useRef(room);
-  useEffect(() => { roomRef.current = room; }, [room]);
 
   async function loadAll() {
     const { data: roomData } = await sb.from('clt_rooms').select('*').eq('id', session.roomId).single();
@@ -1255,16 +1178,18 @@ function Room({ session, onLeave, toast }) {
   }, [session.roomId]);
 
   const me = players.find(p => p.id === session.playerId);
-  const meIdx = players.findIndex(p => p.id === session.playerId);
 
   async function updateMe(fields) {
     setPlayers(ps => ps.map(p => p.id === session.playerId ? { ...p, ...fields } : p));
     await sb.from('clt_players').update(fields).eq('id', session.playerId);
   }
 
-  function changeLife(delta) {
+  function changeLife(delta) { if (me) updateMe({ life: me.life + delta }); }
+
+  function bumpCast(c) {
     if (!me) return;
-    updateMe({ life: me.life + delta });
+    const commanders = (me.commanders || []).map(x => x.id === c.id ? { ...x, times_cast: x.times_cast + 1 } : x);
+    updateMe({ commanders });
   }
 
   async function claimMonarch() {
@@ -1288,54 +1213,56 @@ function Room({ session, onLeave, toast }) {
     setRoom(r => ({ ...r, ring_stage: s }));
     await sb.from('clt_rooms').update({ ring_stage: s }).eq('id', room.id);
   }
-  async function setDayNight(v) {
-    setRoom(r => ({ ...r, day_night: v }));
-    await sb.from('clt_rooms').update({ day_night: v }).eq('id', room.id);
+  async function cycleDayNight() {
+    const order = ['none','day','night'];
+    const next = order[(order.indexOf(room.day_night) + 1) % 3];
+    setRoom(r => ({ ...r, day_night: next }));
+    await sb.from('clt_rooms').update({ day_night: next }).eq('id', room.id);
   }
+  function toggleBlessing() { updateMe({ city_blessing: !me.city_blessing }); }
 
   function scrollToIdx(i) {
     setActiveIdx(i);
     const el = viewportRef.current;
     if (el) el.scrollTo({ left: el.clientWidth * i, behavior: 'smooth' });
   }
-
   function handleScroll() {
     const el = viewportRef.current;
     if (!el) return;
     const idx = Math.round(el.scrollLeft / el.clientWidth);
     if (idx !== activeIdx) setActiveIdx(idx);
   }
+  function copyCode() { navigator.clipboard.writeText(room.code).then(() => toast('Código copiado: ' + room.code)).catch(() => {}); }
+  function leaveRoom() { clearSession(); onLeave(); }
 
-  function copyCode() {
-    navigator.clipboard.writeText(room.code).then(() => toast('Código copiado: ' + room.code)).catch(() => {});
-  }
+  if (loading || !room) return <div className="landing"><span className="loading-spinner" /></div>;
+  if (!me) return (
+    <div className="landing">
+      <div className="landing-error">Ya no estás en esta sala.</div>
+      <button className="btn btn-gold" style={{marginTop:'1rem'}} onClick={leaveRoom}>Volver</button>
+    </div>
+  );
 
-  function leaveRoom() {
-    clearSession();
-    onLeave();
-  }
-
-  if (loading || !room) {
-    return <div className="landing"><span className="loading-spinner" /></div>;
-  }
-  if (!me) {
-    return (
-      <div className="landing">
-        <div className="landing-error">Ya no estás en esta sala.</div>
-        <button className="btn btn-gold" style={{marginTop:'1rem'}} onClick={leaveRoom}>Volver</button>
-      </div>
-    );
-  }
-
-  // ordena: yo primero, luego el resto por seat
   const ordered = [me, ...players.filter(p => p.id !== me.id)];
+  const monarchInitial = room.monarch_player_id ? players.find(p => p.id === room.monarch_player_id)?.name?.[0]?.toUpperCase() : null;
+  const initiativeInitial = room.initiative_player_id ? players.find(p => p.id === room.initiative_player_id)?.name?.[0]?.toUpperCase() : null;
+  const ringInitial = room.ring_bearer_player_id ? players.find(p => p.id === room.ring_bearer_player_id)?.name?.[0]?.toUpperCase() : null;
+  const dayNightEmoji = room.day_night === 'day' ? '☀️' : room.day_night === 'night' ? '🌙' : '🌗';
 
   return (
     <div className="app">
+      <div className={`bg-motif ${room.day_night}`} />
+
       <div className="room-header">
         <div className="room-code-badge" onClick={copyCode} title="Copiar código">{room.code} ⧉</div>
+        <div className="header-toggles">
+          <HeaderToggle emoji="👑" active={room.monarch_player_id === me.id} holderInitial={monarchInitial} onClick={claimMonarch} title="Monarca" />
+          <HeaderToggle emoji="⚔" active={room.initiative_player_id === me.id} holderInitial={initiativeInitial} onClick={claimInitiative} title="Iniciativa" />
+          <HeaderToggle emoji="🏙" active={!!me.city_blessing} onClick={toggleBlessing} title="Bendición de la Ciudad" />
+          <HeaderToggle emoji="💍" active={room.ring_bearer_player_id === me.id} holderInitial={ringInitial} onClick={() => setOpenPanel('ring')} title="El Anillo" />
+          <HeaderToggle emoji={dayNightEmoji} active={room.day_night !== 'none'} onClick={cycleDayNight} title="Día / Noche" />
+        </div>
         <div className="room-header-sep" />
-        {room.day_night !== 'none' && <div className="icon-btn active" title={room.day_night === 'day' ? 'Día' : 'Noche'}>{room.day_night === 'day' ? '☀' : '🌙'}</div>}
         <div className="icon-btn" onClick={leaveRoom} title="Salir de la sala">⎋</div>
       </div>
 
@@ -1354,44 +1281,28 @@ function Room({ session, onLeave, toast }) {
       </div>
 
       <div className="swipe-viewport" ref={viewportRef} onScroll={handleScroll}>
-        {ordered.map((p, i) => (
+        {ordered.map(p => (
           <div className="swipe-slide" key={p.id}>
-            <PlayerLifeCard
+            <PlayerSlide
               player={p}
               isMe={p.id === me.id}
               roomStartLife={room.starting_life}
+              room={room}
+              players={players}
+              me={me}
               onLifeChange={changeLife}
               onOpenPanel={setOpenPanel}
+              onBumpCast={bumpCast}
             />
           </div>
         ))}
       </div>
 
-      {openPanel === 'commanders' && (
-        <CommanderPanel me={me} onSave={commanders => updateMe({ commanders })} onClose={() => setOpenPanel(null)} />
-      )}
-      {openPanel === 'cmg' && (
-        <CommanderDamagePanel me={me} players={players} onUpdate={commander_damage => updateMe({ commander_damage })} onClose={() => setOpenPanel(null)} />
-      )}
-      {openPanel === 'counters' && (
-        <CountersPanel me={me} onUpdate={counters => updateMe({ counters })} onClose={() => setOpenPanel(null)} />
-      )}
-      {openPanel === 'mana' && (
-        <ManaPanel me={me} onUpdate={mana_pool => updateMe({ mana_pool })} onClose={() => setOpenPanel(null)} />
-      )}
-      {openPanel === 'extras' && (
-        <ExtrasPanel
-          me={me} room={room} players={players}
-          onClaimMonarch={claimMonarch}
-          onClaimInitiative={claimInitiative}
-          onClaimRing={claimRing}
-          onSetRingStage={setRingStage}
-          onSetDayNight={setDayNight}
-          onToggleBlessing={() => updateMe({ city_blessing: !me.city_blessing })}
-          onStormChange={storm_count => updateMe({ storm_count })}
-          onClose={() => setOpenPanel(null)}
-        />
-      )}
+      {openPanel === 'commanders' && <CommanderPanel me={me} onSave={commanders => updateMe({ commanders })} onClose={() => setOpenPanel(null)} />}
+      {openPanel === 'cmg' && <CommanderDamagePanel me={me} players={players} onUpdate={fields => updateMe(fields)} onClose={() => setOpenPanel(null)} />}
+      {openPanel === 'counters' && <CountersPanel me={me} onUpdateCounters={counters => updateMe({ counters })} onStormChange={storm_count => updateMe({ storm_count })} onClose={() => setOpenPanel(null)} />}
+      {openPanel === 'mana' && <ManaPanel me={me} onUpdate={mana_pool => updateMe({ mana_pool })} onClose={() => setOpenPanel(null)} />}
+      {openPanel === 'ring' && <RingPanel me={me} room={room} players={players} onClaim={claimRing} onSetStage={setRingStage} onClose={() => setOpenPanel(null)} />}
     </div>
   );
 }
@@ -1407,23 +1318,17 @@ function App() {
       const s = loadSession();
       if (!s) { setChecking(false); return; }
       const { data: player } = await sb.from('clt_players').select('id').eq('id', s.playerId).single();
-      if (player) { setSession(s); } else { clearSession(); }
+      if (player) setSession(s); else clearSession();
       setChecking(false);
     }
     restore();
   }, []);
 
-  if (checking) {
-    return <div className="landing"><span className="loading-spinner" /></div>;
-  }
+  if (checking) return <div className="landing"><span className="loading-spinner" /></div>;
 
   return (
     <div className="app">
-      {!session ? (
-        <Landing onEnter={setSession} />
-      ) : (
-        <Room session={session} onLeave={() => setSession(null)} toast={toast} />
-      )}
+      {!session ? <Landing onEnter={setSession} /> : <Room session={session} onLeave={() => setSession(null)} toast={toast} />}
       <ToastContainer toasts={toasts} />
     </div>
   );
