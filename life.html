@@ -629,23 +629,30 @@ function artCrop(card) {
 
 // ─── Short-press / long-press hook ──────────────────────────────────────────
 const HOLD_MS = 420;
-function usePressAction(onShort, onLong) {
+const REPEAT_MS = 230;
+function usePressAction(onShort, onLong, repeat = false) {
   const timer = useRef(null);
+  const interval = useRef(null);
   const fired = useRef(false);
+  function buzz(ms) { if (navigator.vibrate) try { navigator.vibrate(ms); } catch {} }
   function start(e) {
     e.preventDefault();
     fired.current = false;
     timer.current = setTimeout(() => {
       fired.current = true;
-      if (navigator.vibrate) try { navigator.vibrate(18); } catch {}
+      buzz(18);
       onLong();
+      if (repeat) {
+        interval.current = setInterval(() => { buzz(10); onLong(); }, REPEAT_MS);
+      }
     }, HOLD_MS);
   }
   function end() {
     clearTimeout(timer.current);
+    clearInterval(interval.current);
     if (!fired.current) onShort();
   }
-  function cancel() { clearTimeout(timer.current); }
+  function cancel() { clearTimeout(timer.current); clearInterval(interval.current); }
   return { onPointerDown: start, onPointerUp: end, onPointerLeave: cancel, onPointerCancel: cancel };
 }
 
@@ -694,21 +701,33 @@ function HeaderToggle({ emoji, active, holderInitial, onClick, title }) {
 function Landing({ onEnter }) {
   const [name, setName] = useState('');
   const [startLife, setStartLife] = useState(40);
+  const [customCode, setCustomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   async function createRoom() {
     if (!name.trim()) { setErr('Escribe tu nombre'); return; }
+    const custom = customCode.trim().toUpperCase();
+    if (custom && !/^[A-Z0-9]{3,10}$/.test(custom)) { setErr('El código personalizado debe tener 3-10 letras/números.'); return; }
     setBusy(true); setErr('');
     try {
-      let code, room, attempt = 0;
-      do {
-        code = genRoomCode();
-        const { data, error } = await sb.from('clt_rooms').insert([{ code, starting_life: startLife }]).select().single();
-        if (!error) { room = data; break; }
-        attempt++;
-      } while (attempt < 5);
+      let room = null;
+      if (custom) {
+        const { data: existing } = await sb.from('clt_rooms').select('id').eq('code', custom).maybeSingle();
+        if (existing) { setErr('Ese código ya está en uso. Elige otro.'); setBusy(false); return; }
+        const { data, error } = await sb.from('clt_rooms').insert([{ code: custom, starting_life: startLife }]).select().single();
+        if (error) { setErr('No se pudo crear la sala con ese código. Intenta otro.'); setBusy(false); return; }
+        room = data;
+      } else {
+        let attempt = 0;
+        do {
+          const code = genRoomCode();
+          const { data, error } = await sb.from('clt_rooms').insert([{ code, starting_life: startLife }]).select().single();
+          if (!error) { room = data; break; }
+          attempt++;
+        } while (attempt < 5);
+      }
       if (!room) { setErr('No se pudo crear la sala. Intenta de nuevo.'); setBusy(false); return; }
 
       const clientId = genClientId();
@@ -766,6 +785,10 @@ function Landing({ onEnter }) {
             <option value={50}>50</option>
           </select>
         </div>
+        <div className="field">
+          <label>Código personalizado (opcional)</label>
+          <input className="code-input" value={customCode} onChange={e => setCustomCode(e.target.value.toUpperCase())} placeholder="Vacío = aleatorio" maxLength={10} />
+        </div>
         <button className="btn btn-gold btn-full" onClick={createRoom} disabled={busy}>
           {busy ? <span className="loading-spinner" /> : 'Crear Sala'}
         </button>
@@ -821,7 +844,7 @@ function CommanderPanel({ me, onSave, onClose }) {
         </div>
         {chosen.map(c => (
           <div key={c.id} className="counter-row">
-            <div className="cr-label">{c.name} — impuesto {c.times_cast * 2}</div>
+            <div className="cr-label">{c.name} — tax {c.times_cast * 2}</div>
             <button className="round-btn" onClick={() => bumpCast(c.id, -1)}>−</button>
             <div className="cr-val">{c.times_cast}×</div>
             <button className="round-btn" onClick={() => bumpCast(c.id, 1)}>+</button>
@@ -898,9 +921,9 @@ function CountersPanel({ me, onUpdateCounters, onStormChange, onClose }) {
       </div>
 
       <div className="panel-section">
-        <div className="panel-section-title">🌀 Storm Count (se reinicia cada turno)</div>
+        <div className="panel-section-title">🌪️ Storm Count</div>
         <div className="counter-row" style={{border:'none'}}>
-          <div className="cr-label">Hechizos lanzados</div>
+          <div className="cr-label">🌪️ Storm Count</div>
           <button className="round-btn" onClick={() => onStormChange(Math.max(0, me.storm_count - 1))}>−</button>
           <div className="cr-val">{me.storm_count}</div>
           <button className="round-btn" onClick={() => onStormChange(me.storm_count + 1)}>+</button>
@@ -938,22 +961,15 @@ function ManaPanel({ me, onUpdate, onClose }) {
 
 // ─── Ring panel ──────────────────────────────────────────────────────────
 const RING_STAGES = [
-  { n: 1, text: 'El portador no puede ser bloqueado por criaturas de mayor poder.' },
-  { n: 2, text: 'Al hacer daño de combate a un jugador, roba una carta y luego descarta una.' },
-  { n: 3, text: 'El portador obtiene +1/+1 y adquiere ward {2} (el atacante paga 2 vidas).' },
-  { n: 4, text: 'El portador se vuelve legendario.' },
+  { n: 1, text: 'Tu portador del Anillo es legendario y no puede ser bloqueado por criaturas con mayor fuerza.' },
+  { n: 2, text: 'Siempre que tu portador del Anillo ataque, roba una carta, luego descarta una carta.' },
+  { n: 3, text: 'Siempre que tu portador del Anillo sea bloqueado por una criatura, el controlador de esa criatura la sacrifica al final del combate.' },
+  { n: 4, text: 'Siempre que tu portador del Anillo haga daño de combate a un jugador, cada oponente pierde 3 vidas.' },
 ];
 function RingPanel({ me, room, players, onClaim, onSetStage, onClose }) {
   const bearerName = players.find(p => p.id === room.ring_bearer_player_id)?.name;
   return (
-    <Panel title="El Anillo Único" onClose={onClose}>
-      <div className="toggle-pill-row" style={{marginBottom:'0.4rem'}}>
-        <div className={`toggle-pill ${room.ring_bearer_player_id === me.id ? 'on' : ''}`} onClick={onClaim}>
-          {room.ring_bearer_player_id === me.id ? 'Eres el portador 💍' : 'Tomar el anillo'}
-        </div>
-      </div>
-      {bearerName && room.ring_bearer_player_id !== me.id && <div className="holder-note">Portador actual: {bearerName}</div>}
-
+    <Panel title="El Anillo" onClose={onClose}>
       <div className="panel-section-title" style={{marginTop:'1.1rem'}}>Nivel de tentación</div>
       {RING_STAGES.map(s => (
         <div key={s.n} className={`ring-stage-row ${room.ring_stage >= s.n ? 'on' : ''}`} onClick={() => onSetStage(room.ring_stage === s.n ? s.n - 1 : s.n)}>
@@ -961,6 +977,31 @@ function RingPanel({ me, room, players, onClaim, onSetStage, onClose }) {
           <div className="rsr-text">{s.text}</div>
         </div>
       ))}
+    </Panel>
+  );
+}
+
+// ─── Room menu panel (salir / reiniciar partida) ────────────────────────────
+function RoomMenuPanel({ onLeave, onReset, onClose }) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <Panel title="Menú de la Sala" onClose={onClose}>
+      {!confirming ? (
+        <div style={{display:'flex', flexDirection:'column', gap:'0.7rem'}}>
+          <button className="btn btn-ghost btn-full" onClick={() => setConfirming(true)}>↺ Reiniciar Partida</button>
+          <button className="btn btn-danger btn-full" onClick={onLeave}>⎋ Salir de la Sala</button>
+        </div>
+      ) : (
+        <div>
+          <p style={{color:'var(--text-dim)', fontSize:'0.85rem', marginBottom:'1.1rem', lineHeight:1.55}}>
+            Esto reiniciará vidas, contadores, maná, monarca, iniciativa, el anillo y día/noche para todos en la sala. Los jugadores y sus comandantes elegidos se mantienen (el tax vuelve a 0). Esta acción no se puede deshacer.
+          </p>
+          <div style={{display:'flex', gap:'0.6rem'}}>
+            <button className="btn btn-ghost" style={{flex:1}} onClick={() => setConfirming(false)}>Cancelar</button>
+            <button className="btn btn-danger" style={{flex:1}} onClick={onReset}>Confirmar Reinicio</button>
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -988,7 +1029,7 @@ function CommanderDamagePanel({ me, players, onUpdate, onClose }) {
             {c.image_url && <img src={c.image_url} alt={c.name} />}
             <div className="cmg-info">
               <div className="cmg-name">{c.name}</div>
-              <div className="cmg-owner">de {c.ownerId === me.id ? 'ti mismo' : c.ownerName}</div>
+              <div className="cmg-owner">de {c.ownerId === me.id ? 'ti' : c.ownerName}</div>
             </div>
             <button className="round-btn" onClick={() => bump(c.id, -1)}>−</button>
             <div className="cmg-val">{val}</div>
@@ -996,7 +1037,6 @@ function CommanderDamagePanel({ me, players, onUpdate, onClose }) {
           </div>
         );
       })}
-      {allCommanders.length > 0 && <div className="holder-note" style={{marginTop:'0.6rem'}}>21+ de un mismo comandante = derrota · cada cambio aquí también ajusta tu vida total</div>}
     </Panel>
   );
 }
@@ -1057,7 +1097,7 @@ function OpponentDetail({ player, room, players, me }) {
         {hasMonarch && <div className="status-chip on">👑 Monarca</div>}
         {hasInitiative && <div className="status-chip on">⚔ Iniciativa</div>}
         {hasRing && <div className="status-chip on">💍 Portador</div>}
-        {player.city_blessing && <div className="status-chip on">🏙 Bendición</div>}
+        {player.city_blessing && <div className="status-chip on">🏙️ Bendición</div>}
         {(counters.poison || 0) > 0 && <div className="status-chip on">☠ {counters.poison}</div>}
         {(counters.experience || 0) > 0 && <div className="status-chip on">✦ {counters.experience}</div>}
         {(counters.energy || 0) > 0 && <div className="status-chip on">⚡ {counters.energy}</div>}
@@ -1089,8 +1129,8 @@ function PlayerSlide({ player, isMe, roomStartLife, room, players, me, onLifeCha
   const lifeClass = life <= 0 ? 'crit' : life <= (roomStartLife || 40) * 0.25 ? 'low' : '';
   const [charging, setCharging] = useState(null); // 'plus' | 'minus' | null
 
-  const minusPress = usePressAction(() => onLifeChange(-1), () => onLifeChange(-5));
-  const plusPress = usePressAction(() => onLifeChange(1), () => onLifeChange(5));
+  const minusPress = usePressAction(() => onLifeChange(-1), () => onLifeChange(-5), true);
+  const plusPress = usePressAction(() => onLifeChange(1), () => onLifeChange(5), true);
 
   return (
     <div>
@@ -1106,7 +1146,6 @@ function PlayerSlide({ player, isMe, roomStartLife, room, players, me, onLifeCha
       <div className={`life-stage ${charging === 'plus' ? 'charging-plus' : charging === 'minus' ? 'charging-minus' : ''}`}>
         <div className="life-label">{isMe ? 'Tu vida' : 'Vida'}</div>
         <div className={`life-number ${lifeClass}`}>{life}</div>
-        {isMe && <div className="life-hint">toque = ±1 · mantener = ±5</div>}
         {isMe && (
           <div className="life-tap-zones">
             <div className="life-tap-zone"
@@ -1214,12 +1253,43 @@ function Room({ session, onLeave, toast }) {
     await sb.from('clt_rooms').update({ ring_stage: s }).eq('id', room.id);
   }
   async function cycleDayNight() {
-    const order = ['none','day','night'];
-    const next = order[(order.indexOf(room.day_night) + 1) % 3];
+    const next = room.day_night === 'none' ? 'day' : (room.day_night === 'day' ? 'night' : 'day');
     setRoom(r => ({ ...r, day_night: next }));
     await sb.from('clt_rooms').update({ day_night: next }).eq('id', room.id);
   }
   function toggleBlessing() { updateMe({ city_blessing: !me.city_blessing }); }
+
+  async function resetGame() {
+    const startLife = room.starting_life;
+    const roomUpdate = { monarch_player_id: null, initiative_player_id: null, ring_bearer_player_id: null, ring_stage: 0, day_night: 'none' };
+    setRoom(r => ({ ...r, ...roomUpdate }));
+
+    setPlayers(ps => ps.map(p => ({
+      ...p,
+      life: startLife,
+      commander_damage: {},
+      counters: { poison: 0, experience: 0, energy: 0, custom: [] },
+      city_blessing: false,
+      mana_pool: { W:0,U:0,B:0,R:0,G:0,C:0 },
+      storm_count: 0,
+      commanders: (p.commanders || []).map(c => ({ ...c, times_cast: 0 })),
+    })));
+
+    await sb.from('clt_rooms').update(roomUpdate).eq('id', room.id);
+    for (const p of players) {
+      await sb.from('clt_players').update({
+        life: startLife,
+        commander_damage: {},
+        counters: { poison: 0, experience: 0, energy: 0, custom: [] },
+        city_blessing: false,
+        mana_pool: { W:0,U:0,B:0,R:0,G:0,C:0 },
+        storm_count: 0,
+        commanders: (p.commanders || []).map(c => ({ ...c, times_cast: 0 })),
+      }).eq('id', p.id);
+    }
+    setOpenPanel(null);
+    toast('Partida reiniciada para todos');
+  }
 
   function scrollToIdx(i) {
     setActiveIdx(i);
@@ -1258,12 +1328,12 @@ function Room({ session, onLeave, toast }) {
         <div className="header-toggles">
           <HeaderToggle emoji="👑" active={room.monarch_player_id === me.id} holderInitial={monarchInitial} onClick={claimMonarch} title="Monarca" />
           <HeaderToggle emoji="⚔" active={room.initiative_player_id === me.id} holderInitial={initiativeInitial} onClick={claimInitiative} title="Iniciativa" />
-          <HeaderToggle emoji="🏙" active={!!me.city_blessing} onClick={toggleBlessing} title="Bendición de la Ciudad" />
+          <HeaderToggle emoji="🏙️" active={!!me.city_blessing} onClick={toggleBlessing} title="Bendición de la Ciudad" />
           <HeaderToggle emoji="💍" active={room.ring_bearer_player_id === me.id} holderInitial={ringInitial} onClick={() => setOpenPanel('ring')} title="El Anillo" />
           <HeaderToggle emoji={dayNightEmoji} active={room.day_night !== 'none'} onClick={cycleDayNight} title="Día / Noche" />
         </div>
         <div className="room-header-sep" />
-        <div className="icon-btn" onClick={leaveRoom} title="Salir de la sala">⎋</div>
+        <div className="icon-btn" onClick={() => setOpenPanel('menu')} title="Menú de la sala">⋮</div>
       </div>
 
       <div className="player-tabs">
@@ -1303,6 +1373,7 @@ function Room({ session, onLeave, toast }) {
       {openPanel === 'counters' && <CountersPanel me={me} onUpdateCounters={counters => updateMe({ counters })} onStormChange={storm_count => updateMe({ storm_count })} onClose={() => setOpenPanel(null)} />}
       {openPanel === 'mana' && <ManaPanel me={me} onUpdate={mana_pool => updateMe({ mana_pool })} onClose={() => setOpenPanel(null)} />}
       {openPanel === 'ring' && <RingPanel me={me} room={room} players={players} onClaim={claimRing} onSetStage={setRingStage} onClose={() => setOpenPanel(null)} />}
+      {openPanel === 'menu' && <RoomMenuPanel onLeave={leaveRoom} onReset={resetGame} onClose={() => setOpenPanel(null)} />}
     </div>
   );
 }
