@@ -1,0 +1,34 @@
+name: Supabase Keep-Alive
+
+# Corre cada 5 días a las 12:00 UTC (~6-7am hora de Querétaro) + se puede disparar manualmente.
+# Con 5 días de margen contra el límite de 7 días de inactividad, sigue quedando colchón
+# de 2 días por si algún día falla la corrida o GitHub la retrasa.
+on:
+  schedule:
+    - cron: '0 12 */5 * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping-supabase-projects:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Grimoire / Commander Hall (proyecto compartido)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://zqhwcvommtjmbdtylyve.supabase.co/rest/v1/lists?select=id&limit=1" \
+            -H "apikey: ${{ secrets.GRIMOIRE_SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.GRIMOIRE_SUPABASE_KEY }}" \
+            -H "x-app-secret: ${{ secrets.GRIMOIRE_APP_SECRET }}")
+          echo "Grimoire/Commander Hall ping -> HTTP $code"
+
+      - name: Ping UVS Platform (proyecto propio)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://nxkrcnfttvrbmkilteho.supabase.co/rest/v1/sets?select=id&limit=1" \
+            -H "apikey: ${{ secrets.UVS_SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.UVS_SUPABASE_KEY }}" \
+            -H "x-app-secret: ${{ secrets.UVS_APP_SECRET }}")
+          echo "UVS ping -> HTTP $code"
+
+      # Si algún día agregas otro proyecto Supabase (ej. DDCB Card Cube), copia un
+      # step más aquí siguiendo el mismo patrón: URL del proyecto + su anon key + su header.
