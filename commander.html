@@ -483,9 +483,9 @@ function comboQuery(ci) {
 
 // ─── Configuración: Planeswalkers comandantes ─────────────────────────────────
 const PW_SUBGROUPS = [
-  { key: 'pw_transform', label: 'TDFC', query: '(f:commander is:commander t:planeswalker is:tdfc game:paper) or (is:funny is:commander t:planeswalker is:tdfc game:paper -b:da1 -b:ph22)' },
-  { key: 'pw_text',      label: 'Native', query: '(f:commander is:commander t:planeswalker -is:dfc game:paper) or (is:funny is:commander t:planeswalker -is:dfc game:paper -b:da1 -b:ph22)' },
-  { key: 'pw_dfc',       label: 'MDFC', query: '(f:commander is:commander t:planeswalker is:mdfc game:paper) or (is:funny is:commander t:planeswalker is:mdfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_transform', label: 'Transforman', query: '(f:commander is:commander t:planeswalker is:tdfc game:paper) or (is:funny is:commander t:planeswalker is:tdfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_text',      label: 'Texto "can be your commander"', query: '(f:commander is:commander t:planeswalker -is:dfc game:paper) or (is:funny is:commander t:planeswalker -is:dfc game:paper -b:da1 -b:ph22)' },
+  { key: 'pw_dfc',       label: 'Doble cara (MDFC)', query: '(f:commander is:commander t:planeswalker is:mdfc game:paper) or (is:funny is:commander t:planeswalker is:mdfc game:paper -b:da1 -b:ph22)' },
 ];
 
 // ─── Configuración: Comandantes en pareja ─────────────────────────────────────
@@ -503,6 +503,12 @@ const ALL_REGISTER_MODULE_KEYS = [
   ...PW_SUBGROUPS.map(p => p.key),
   ...PARTNER_SUBGROUPS.map(p => p.key),
 ];
+
+const MODULE_TITLES = {
+  ...Object.fromEntries(COLOR_COMBOS.map(c => ['reg_' + c.key, c.name])),
+  ...Object.fromEntries(PW_SUBGROUPS.map(p => [p.key, 'Planeswalkers — ' + p.label])),
+  ...Object.fromEntries(PARTNER_SUBGROUPS.map(p => [p.key, 'Parejas — ' + p.label])),
+};
 
 // ─── Companions (11) — predicados de restricción sobre el comandante ─────────
 function getOracleText(card) {
@@ -621,6 +627,64 @@ async function refreshModuleFromScryfall(moduleKey, query, existingEntries, toas
   const enrichedNew = newCards.map((c, i) => ({ ...rows[i], id: undefined, cardData: c }));
   return [...existingEntries, ...enrichedNew];
 }
+
+// ─── Exportación (por módulo y global) ───────────────────────────────────────
+function formatCardLine(entry) {
+  const c = entry.cardData;
+  if (!c) return entry.name || entry.scryfall_id;
+  const set = c.set ? c.set.toUpperCase() : '';
+  const cn = c.collector_number || '';
+  return set ? `${c.name} (${set}) ${cn}`.trim() : c.name;
+}
+
+function buildModuleReport(title, entries) {
+  const withCards = entries.filter(e => e.cardData);
+  const owned = withCards.filter(e => e.owned).sort((a,b) => a.cardData.name.localeCompare(b.cardData.name));
+  const missing = withCards.filter(e => !e.owned).sort((a,b) => a.cardData.name.localeCompare(b.cardData.name));
+  const lines = [];
+  lines.push(`== ${title} ==`);
+  lines.push(`-- En colección (${owned.length}) --`);
+  owned.forEach(e => lines.push(formatCardLine(e)));
+  lines.push('');
+  lines.push(`-- Faltantes (${missing.length}) --`);
+  missing.forEach(e => lines.push(formatCardLine(e)));
+  return lines.join('\n');
+}
+
+async function copyToClipboard(text, toast, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`${label || 'Reporte'} copiado al portapapeles`);
+  } catch (e) {
+    toast('No se pudo copiar al portapapeles', 'error');
+  }
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function exportAllModules(toast, onProgress) {
+  const sections = [];
+  for (let i = 0; i < ALL_REGISTER_MODULE_KEYS.length; i++) {
+    const key = ALL_REGISTER_MODULE_KEYS[i];
+    if (onProgress) onProgress(i + 1, ALL_REGISTER_MODULE_KEYS.length, MODULE_TITLES[key] || key);
+    const { data, error } = await loadModuleEntries(key);
+    if (error || !data) continue;
+    sections.push(buildModuleReport(MODULE_TITLES[key] || key, data));
+  }
+  return sections.join('\n\n');
+}
+
+
 
 // ─── Card grid item (registro) ────────────────────────────────────────────────
 // ─── Agrupamiento para módulos de registro ────────────────────────────────────
@@ -774,6 +838,14 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast, grouping }) 
     toast('Carta quitada del módulo');
   }
 
+  function handleCopyExport() {
+    copyToClipboard(buildModuleReport(title, entries), toast, title);
+  }
+  function handleDownloadExport() {
+    const filename = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '.txt';
+    downloadTextFile(filename, buildModuleReport(title, entries));
+  }
+
   const owned = entries.filter(e => e.owned).length;
   const groups = useMemo(() => computeGroups(entries, grouping), [entries, grouping]);
 
@@ -786,6 +858,8 @@ function RegisterModule({ moduleKey, query, title, subtitle, toast, grouping }) 
           <div className="list-view-stats">{loading ? '—' : <><span className="owned-count">{owned}</span> / {entries.length} en colección</>}</div>
         </div>
         <div className="list-view-actions">
+          <button className="btn btn-ghost btn-sm" onClick={handleCopyExport} disabled={loading || entries.length === 0} title="Copiar en colección + faltantes al portapapeles">📋 Copiar</button>
+          <button className="btn btn-ghost btn-sm" onClick={handleDownloadExport} disabled={loading || entries.length === 0} title="Descargar .txt con en colección + faltantes">⬇ .txt</button>
           <button className="btn btn-gold" onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? <><span className="loading-spinner"/> Consultando…</> : '🔄 Refrescar desde Scryfall'}
           </button>
@@ -918,7 +992,7 @@ function QueryModule({ combo, toast }) {
     // 1. módulo de registro directo con ci exacto
     const regKey = 'reg_' + combo.key;
     const { data: regEntries } = await loadModuleEntries(regKey);
-    const direct = (regEntries || []).filter(e => e.owned && e.cardData).map(e => ({ cardData: e.cardData, sources: ['🐾'] }));
+    const direct = (regEntries || []).filter(e => e.owned && e.cardData).map(e => ({ cardData: e.cardData, sources: ['Registro directo'] }));
 
     // 2. planeswalkers con ci coincidente
     let pwCards = [];
@@ -926,7 +1000,7 @@ function QueryModule({ combo, toast }) {
       const { data } = await loadModuleEntries(pw.key);
       for (const e of (data || [])) {
         if (e.owned && e.cardData && ciKey(e.cardData) === targetCi) {
-          pwCards.push({ cardData: e.cardData, sources: ['✨'] });
+          pwCards.push({ cardData: e.cardData, sources: ['Planeswalker: ' + pw.label] });
         }
       }
     }
@@ -1097,11 +1171,41 @@ function ComboTile({ combo, onClick, statLabel }) {
   );
 }
 
-function Home({ onOpenRegister, onOpenQuery }) {
+function ExportProgressModal({ current, total, label }) {
+  return (
+    <Modal onClose={() => {}}>
+      <div className="modal-title">Exportando el Hall completo…</div>
+      <p className="confirm-text">Módulo {current} / {total}{label ? ` — ${label}` : ''}</p>
+      <div style={{textAlign:'center', padding:'1rem 0'}}><span className="loading-spinner" /></div>
+    </Modal>
+  );
+}
+
+function Home({ onOpenRegister, onOpenQuery, toast }) {
+  const [exporting, setExporting] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: ALL_REGISTER_MODULE_KEYS.length, label: '' });
+
+  async function handleExportAll(mode) {
+    setExporting(true);
+    setProgress({ current: 0, total: ALL_REGISTER_MODULE_KEYS.length, label: '' });
+    const text = await exportAllModules(toast, (current, total, label) => setProgress({ current, total, label }));
+    setExporting(false);
+    if (mode === 'copy') copyToClipboard(text, toast, 'Hall completo');
+    else downloadTextFile('commander-hall-completo.txt', text);
+  }
+
   return (
     <div>
-      <div className="page-title">MTG Commander Hall</div>
-      <div className="page-subtitle">Explora y gestiona tu colección de posibles comandantes, hermana de Grimoire.</div>
+      <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:'1rem'}}>
+        <div>
+          <div className="page-title">MTG Commander Hall</div>
+          <div className="page-subtitle">Explora y gestiona tu colección de posibles comandantes, hermana de Grimoire.</div>
+        </div>
+        <div style={{display:'flex', gap:'0.6rem', flexShrink:0}}>
+          <button className="btn btn-ghost" onClick={() => handleExportAll('copy')} disabled={exporting} title="Copiar todo el Hall (en colección + faltantes, por módulo) al portapapeles">📋 Copiar todo</button>
+          <button className="btn btn-ghost" onClick={() => handleExportAll('download')} disabled={exporting} title="Descargar todo el Hall como .txt">⬇ Exportar todo</button>
+        </div>
+      </div>
 
       <div className="section-heading">Registro — colores puros</div>
       <div className="tiles-grid">
@@ -1126,6 +1230,8 @@ function Home({ onOpenRegister, onOpenQuery }) {
       <div className="tiles-grid">
         {COLOR_COMBOS.map(c => <ComboTile key={c.key} combo={c} onClick={() => onOpenQuery(c.key)} />)}
       </div>
+
+      {exporting && <ExportProgressModal current={progress.current} total={progress.total} label={progress.label} />}
     </div>
   );
 }
@@ -1144,7 +1250,7 @@ function App() {
   let content = null;
 
   if (view === 'home') {
-    content = <Home onOpenRegister={openRegister} onOpenQuery={openQuery} />;
+    content = <Home onOpenRegister={openRegister} onOpenQuery={openQuery} toast={toast} />;
   } else if (view === 'register') {
     if (param.kind === 'color') {
       const combo = COLOR_COMBOS.find(c => c.key === param.key);
